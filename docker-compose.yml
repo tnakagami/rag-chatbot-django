@@ -1,0 +1,67 @@
+x-logging:
+  &json-logging
+  driver: json-file
+  options:
+    max-size: "1m"
+    max-file: "3"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        # architecture: amd64, arm32v5, arm64v8, i386, and so on.
+        - ARCHITECTURE=arm64v8
+        - UID=1000
+        - GID=1003
+        - USERNAME=user
+    image: backend
+    container_name: rag-backend
+    environment:
+      - LANGUAGE_CODE=ja
+      - TZ=Asia/Tokyo
+      - DB_HOST=postgres
+      - DB_PORT=5432
+    env_file:
+      - ./env_files/backend/.env
+      - ./env_files/postgres/.env
+    networks:
+      - rag-app
+    volumes:
+      - ./backend/app:/opt/app
+    ports:
+      - 8192:8000
+    entrypoint: python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+    logging: *json-logging
+
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+      args:
+        # architecture: amd64, arm32v5, arm64v8, i386, and so on.
+        - ARCHITECTURE=arm64v8
+    image: postgres
+    container_name: rag-postgres
+    env_file:
+      - ./env_files/postgres/.env
+    networks:
+      - rag-app
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    expose:
+      - 5432
+    restart: always
+    logging: *json-logging
+
+networks:
+  rag-app:
+    name: rag-app
+volumes:
+  postgres:
+    name: rag-postgres-db
