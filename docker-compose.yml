@@ -16,44 +16,46 @@ services:
         - UID=1000
         - GID=1003
         - USERNAME=user
-    image: backend
+    image: rag-backend
     container_name: rag-backend
     environment:
       - LANGUAGE_CODE=ja
       - TZ=Asia/Tokyo
-      - DB_HOST=postgres
+      - DB_HOST=database
       - DB_PORT=5432
     env_file:
       - ./env_files/backend/.env
-      - ./env_files/postgres/.env
+      - ./env_files/database/.env
     networks:
       - rag-app
     volumes:
       - ./backend/app:/opt/app
+      - ./backend/pyproject.toml:/opt/pyproject.toml
     ports:
       - 8192:8000
-    entrypoint: python manage.py runserver 0.0.0.0:8000
     depends_on:
-      postgres:
+      database:
         condition: service_healthy
+    command:
+      - --reload
     restart: always
     logging: *json-logging
 
-  postgres:
+  database:
     build:
-      context: ./postgres
+      context: ./database
       dockerfile: Dockerfile
       args:
         # architecture: amd64, arm32v5, arm64v8, i386, and so on.
         - ARCHITECTURE=arm64v8
-    image: postgres
-    container_name: rag-postgres
+    image: rag-database
+    container_name: rag-database
     env_file:
-      - ./env_files/postgres/.env
+      - ./env_files/database/.env
     networks:
       - rag-app
     volumes:
-      - postgres:/var/lib/postgresql/data
+      - database:/var/lib/database/data
     expose:
       - 5432
     restart: always
@@ -63,5 +65,5 @@ networks:
   rag-app:
     name: rag-app
 volumes:
-  postgres:
-    name: rag-postgres-db
+  database:
+    name: rag-database

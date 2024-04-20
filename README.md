@@ -24,7 +24,7 @@ In this document, the following three conditions are assumed to assure operation
 
 ## Preparations
 ### Step1: Create `.env` files in the `env_files` directory
-Please check the [Postgres README.md](./env_files/postgres/README.md) and [Backend README.md](./env_files/backend/README.md) for detail.
+Please check the [Common README.md](./env_files/README.md), [Database README.md](./env_files/database/README.md), and [Backend README.md](./env_files/backend/README.md) for detail.
 
 ### Step2: Build images
 Run the following command to create docker images.
@@ -34,8 +34,8 @@ Run the following command to create docker images.
 ./wrapper.sh build
 ```
 
-### Step3: Customize Django application
-In the `backend/app` directory, store Python scripts. Please modify those scripts if you want to customize them.
+### Step3: Setup backend
+See the [README.md](./backend/README.md) in detail.
 
 ## Execution
 Enter the following commands in your terminal to start Django application and Database server.

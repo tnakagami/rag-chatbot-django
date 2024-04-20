@@ -30,6 +30,7 @@ unstructured = { extras = ["doc", "docx"], version = "^0.13.2", optional = true 
 pdfminer-six = "^20231228"
 pgvector = "^0.2.5"
 psycopg = "^3.1.18"
+django-asgi-lifespan = "^0.3.1"
 
 [build-system]
 requires = ["poetry-core"]

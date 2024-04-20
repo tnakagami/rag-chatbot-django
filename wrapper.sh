@@ -51,7 +51,7 @@ while [ -n "$1" ]; do
         docker-compose logs ${target_service}
         shift
       else
-        docker-compose logs postgres
+        docker-compose logs database
         docker-compose logs backend
       fi
       shift
