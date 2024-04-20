@@ -1,0 +1,69 @@
+x-logging:
+  &json-logging
+  driver: json-file
+  options:
+    max-size: "1m"
+    max-file: "3"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        # architecture: amd64, arm32v5, arm64v8, i386, and so on.
+        - ARCHITECTURE=arm64v8
+        - UID=1000
+        - GID=1003
+        - USERNAME=user
+    image: rag-backend
+    container_name: rag-backend
+    environment:
+      - LANGUAGE_CODE=ja
+      - TZ=Asia/Tokyo
+      - DB_HOST=database
+      - DB_PORT=5432
+    env_file:
+      - ./env_files/backend/.env
+      - ./env_files/database/.env
+    networks:
+      - rag-app
+    volumes:
+      - ./backend/app:/opt/app
+      - ./backend/pyproject.toml:/opt/pyproject.toml
+    ports:
+      - 8192:8000
+    depends_on:
+      database:
+        condition: service_healthy
+    command:
+      - --reload
+    restart: always
+    logging: *json-logging
+
+  database:
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+      args:
+        # architecture: amd64, arm32v5, arm64v8, i386, and so on.
+        - ARCHITECTURE=arm64v8
+    image: rag-database
+    container_name: rag-database
+    env_file:
+      - ./env_files/database/.env
+    networks:
+      - rag-app
+    volumes:
+      - database:/var/lib/database/data
+    expose:
+      - 5432
+    restart: always
+    logging: *json-logging
+
+networks:
+  rag-app:
+    name: rag-app
+volumes:
+  database:
+    name: rag-database
