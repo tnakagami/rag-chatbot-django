@@ -34,7 +34,7 @@ services:
       - ./backend/pyproject.toml:/opt/pyproject.toml
       - ./backend/bashrc:/opt/home/.bashrc:ro
     ports:
-      - 8192:8000
+      - 7654:8000
     depends_on:
       database:
         condition: service_healthy

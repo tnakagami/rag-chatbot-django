@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('markdownx/', include('markdownx.urls')),
     path('i18n/', include('django.conf.urls.i18n')),
+    path('api/v1/', include(('config.drf_urls', 'api'))),
 ] + i18n_patterns(
     path('', include('account.urls', namespace='account')),
 )

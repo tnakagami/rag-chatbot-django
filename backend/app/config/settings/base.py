@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 from django.utils.translation import gettext_lazy
 
@@ -37,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
     'view_breadcrumbs',
     'markdownx',
     # apps
@@ -80,7 +82,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-# define custom user model
+# Define custom user model
 AUTH_USER_MODEL = 'account.User'
 AUTHENTICATION_BACKENDS = [
     'account.backends.EmailBackend',
@@ -90,6 +92,24 @@ LOGIN_URL = 'account:index'
 LOGIN_REDIRECT_URL = 'account:index'
 LOGOUT_URL = 'account:logout'
 LOGOUT_REDIRECT_URL = 'account:index'
+
+# define Django REST API
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': {
+        # Authentication is required
+        'rest_framework.permissions.IsAuthenticated',
+    },
+    'DEFAULT_AUTHENTICATION_CLASSES': {
+        # JWT (JSON Web Token) Authentication
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    },
+}
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=3),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
+    'ROTATE_REFRESH_TOKENS': True,
+    'AUTH_HEADER_TYPES': ('JWT',),
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators

@@ -18,21 +18,21 @@ class LoginPage(BaseBreadcrumbMixin, LoginView):
 class LogoutPage(LogoutView):
   template_name = 'account/index.html'
 
-class OnlyYou(UserPassesTestMixin):
+class IsOwner(UserPassesTestMixin):
   def test_func(self):
     user = self.get_object()
     is_valid = user.pk == self.request.user.pk
 
     return is_valid
 
-class UserProfilePage(LoginRequiredMixin, OnlyYou, DetailBreadcrumbMixin, DetailView):
+class UserProfilePage(LoginRequiredMixin, IsOwner, DetailBreadcrumbMixin, DetailView):
   raise_exception = True
   model = models.User
   template_name = 'account/user_profile.html'
   context_object_name = 'owner'
   crumbs = [(gettext_lazy('User Profile'), 'user_profile')]
 
-class UpdateUserProfile(LoginRequiredMixin, OnlyYou, UpdateBreadcrumbMixin, UpdateView):
+class UpdateUserProfile(LoginRequiredMixin, IsOwner, UpdateBreadcrumbMixin, UpdateView):
   raise_exception = True
   model = models.User
   form_class = forms.UserProfileForm
