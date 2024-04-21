@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("RAG - User Profile") %}
+<div class="row justify-content-center">
+  <div class="col">
+    <div class="row row-cols-1 row-cols-md-2 g-1">
+      <div class="col">
+        <strong class="fs5">{% trans 'screen name' %}</strong>
+      </div>
+      <div class="col">
+        <p class="fs5">{{ owner.get_full_name }}</p>
+      </div>
+      <div class="col">
+        <strong class="fs5">{% trans 'UID' %}</strong>
+      </div>
+      <div class="col">
+        <p class="fs5">{{ owner.pk }}</p>
+      </div>
+    </div>
+    <div class="row row-cols-1 row-cols-md-2 g-2">
+      <div class="col">
+        <a href="{% url 'account:update_profile' pk=owner.pk %}" class="btn btn-primary w-100 custom-boxshadow-effect">
+          {% trans "Update user profile" %}
+        </a>
+      </div>
+      <div class="col">
+        <a href="{% url 'account:index' %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+          {% trans "Back" %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

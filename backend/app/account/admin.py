@@ -12,7 +12,7 @@ class CustomUserChangeForm(UserChangeForm):
 class CustomUserCreationForm(UserCreationForm):
   class Meta:
     model = User
-    fields = ('username', 'email',)
+    fields = ('username', 'email', 'screen_name',)
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
@@ -24,7 +24,7 @@ class CustomUserAdmin(UserAdmin):
   add_fieldsets = (
     (None, {
       'classes': ('wide',),
-      'fields': ('username', 'email', 'password1', 'password2'),
+      'fields': ('username', 'email', 'password1', 'password2', 'screen_name',),
     }),
   )
 

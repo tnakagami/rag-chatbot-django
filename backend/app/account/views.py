@@ -1,21 +1,10 @@
 from django.contrib.auth.views import LoginView, LogoutView
-from django.views.generic import (
-  TemplateView,
-  CreateView,
-  UpdateView,
-  DetailView,
-  DeleteView
-)
+from django.views.generic import TemplateView, UpdateView, DetailView
 from django.utils.translation import gettext_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.urls import reverse_lazy, reverse
-from view_breadcrumbs import (
-  BaseBreadcrumbMixin,
-  CreateBreadcrumbMixin,
-  DetailBreadcrumbMixin,
-  UpdateBreadcrumbMixin
-)
-from . import forms
+from django.urls import reverse
+from view_breadcrumbs import BaseBreadcrumbMixin, DetailBreadcrumbMixin, UpdateBreadcrumbMixin
+from . import models, forms
 
 class Index(BaseBreadcrumbMixin, TemplateView):
   template_name = 'account/index.html'
@@ -28,3 +17,27 @@ class LoginPage(BaseBreadcrumbMixin, LoginView):
 
 class LogoutPage(LogoutView):
   template_name = 'account/index.html'
+
+class OnlyYou(UserPassesTestMixin):
+  def test_func(self):
+    user = self.get_object()
+    is_valid = user.pk == self.request.user.pk
+
+    return is_valid
+
+class UserProfilePage(LoginRequiredMixin, OnlyYou, DetailBreadcrumbMixin, DetailView):
+  raise_exception = True
+  model = models.User
+  template_name = 'account/user_profile.html'
+  context_object_name = 'owner'
+  crumbs = [(gettext_lazy('User Profile'), 'user_profile')]
+
+class UpdateUserProfile(LoginRequiredMixin, OnlyYou, UpdateBreadcrumbMixin, UpdateView):
+  raise_exception = True
+  model = models.User
+  form_class = forms.UserProfileForm
+  template_name = 'account/profile_form.html'
+  crumbs = [(gettext_lazy('Update User Profile'), 'update_profile')]
+
+  def get_success_url(self):
+    return reverse('account:user_profile', kwargs={'pk': self.kwargs['pk']})

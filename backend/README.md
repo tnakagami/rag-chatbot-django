@@ -52,3 +52,13 @@ docker-compose run --rm -it --entrypoint django-admin makemessages -l ja backend
 #
 docker-compose run --rm -it --entrypoint django-admin compilemessages backend
 ```
+
+## Test
+Enter the following command on your terminal, then execute `pytest` command.
+
+```bash
+# In the host environment
+docker-compose run --rm -it --entrypoint /bin/bash backend
+# In the docker environment
+pytest
+```

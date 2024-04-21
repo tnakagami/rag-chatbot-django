@@ -86,6 +86,10 @@ AUTHENTICATION_BACKENDS = [
     'account.backends.EmailBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+LOGIN_URL = 'account:index'
+LOGIN_REDIRECT_URL = 'account:index'
+LOGOUT_URL = 'account:logout'
+LOGOUT_REDIRECT_URL = 'account:index'
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -109,7 +113,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', 'en-us')
+LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', 'en')
 
 TIME_ZONE = os.getenv('TZ', 'UTC')
 
@@ -129,7 +133,7 @@ LANGUAGES = [
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = '/static'
+STATIC_ROOT = '/static/django'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

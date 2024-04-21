@@ -9,11 +9,13 @@
         <h1 class="col-auto text-dark">
           <a href="{% url 'account:index' %}" class="text-decoration-none text-reset">Chatbot using RAG</a>
         </h1>
-        {% if not request|is_login_page  %}
-        <button type="button" class="col-auto navbar-toggler" data-bs-toggle="collapse" aria-label="Toggle navigation"
-                data-bs-target="#rag-header-content" aria-controls="rag-header-content" aria-expanded="false">
-          <span class="navbar-toggler-icon"></span>
-        </button>
+        {% if not request|is_login_page %}
+        <div class="col-auto pr-3">
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" aria-label="Toggle navigation"
+                  data-bs-target="#rag-header-content" aria-controls="rag-header-content" aria-expanded="false">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+        </div>
         {% endif %}
         <div class="col-auto collapse navbar-collapse" id="rag-header-content">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
@@ -33,7 +35,7 @@
                       {{ language.name_local }} ({{ language.code }})
                     </a>
                   </li>
-                {% endfor %}                
+                {% endfor %}
               </ul>
             </li>
             <li class="nav-item">
@@ -41,9 +43,14 @@
             </li>
             {% else %}
             <li class="nav-item">
+
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'account:user_profile' pk=user.pk %}">{% trans "User Profile" %}</a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link" href="{% url 'account:logout' %}">{% trans "Logout" %}</a>
             </li>
-            <li class="nav-item"></li>
             {% endif %}
           </ul>
         </div>
