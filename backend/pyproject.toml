@@ -7,8 +7,9 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.12"
-django = "^5.0.4"
+django = "^4.2.11"
 djangorestframework = "^3.15.1"
+djangorestframework-simplejwt = "^5.3.1"
 uvicorn = "^0.29.0"
 python-magic = "^0.4.27"
 beautifulsoup4 = "^4.12.3"
@@ -31,6 +32,8 @@ pdfminer-six = "^20231228"
 pgvector = "^0.2.5"
 psycopg = "^3.1.18"
 django-asgi-lifespan = "^0.3.1"
+django-view-breadcrumbs = "^2.5.1"
+django-markdownx = "^4.0.7"
 
 [build-system]
 requires = ["poetry-core"]

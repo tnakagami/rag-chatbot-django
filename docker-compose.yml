@@ -29,8 +29,10 @@ services:
     networks:
       - rag-app
     volumes:
+      - ./static:/static:ro
       - ./backend/app:/opt/app
       - ./backend/pyproject.toml:/opt/pyproject.toml
+      - ./backend/bashrc:/opt/.bashrc:ro
     ports:
       - 8192:8000
     depends_on:
