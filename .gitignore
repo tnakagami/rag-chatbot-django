@@ -161,4 +161,7 @@ cython_debug/
 
 # Add files or directories by user
 static/django/
+backend/app/htmlcov/*
+!backend/app/htmlcov/.git-keep
 backend/app/coverage.xml
+.vscode/

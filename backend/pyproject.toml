@@ -55,7 +55,7 @@ django-webtest = "^1.9.11"
 PYTHONPATH = "/opt/app"
 
 [tool.pytest.ini_options]
-addopts = "-vv --cache-clear --rootdir=/opt/app --cov=. --cov-report=xml --cov-config=.coveragerc"
+addopts = "-vv --cache-clear --rootdir=/opt/app --cov=. --cov-report=xml --cov-report=html --cov-config=.coveragerc"
 DJANGO_SETTINGS_MODULE = "config.settings.development"
 testpaths = ["all_tests"]
 python_files = ["test_*.py", "tests.py", "*_test.py"]
