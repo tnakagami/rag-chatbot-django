@@ -57,7 +57,7 @@ services:
     networks:
       - rag-app
     volumes:
-      - database:/var/lib/database/data
+      - database:/var/lib/postgresql/data
     expose:
       - 5432
     restart: always

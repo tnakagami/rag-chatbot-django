@@ -1,6 +1,7 @@
 import pytest
 from account import forms
 
+@pytest.mark.form
 @pytest.mark.parametrize('screen_name,is_valid', [
   ('name', True),
   ('1'*128, True),

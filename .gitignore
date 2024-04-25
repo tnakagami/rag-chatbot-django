@@ -161,3 +161,4 @@ cython_debug/
 
 # Add files or directories by user
 static/django/
+backend/app/coverage.xml

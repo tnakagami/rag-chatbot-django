@@ -26,7 +26,8 @@ COPY ./pyproject.toml /opt/pyproject.toml
 
 RUN    cd /opt \
     && poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi
+    && poetry install --no-interaction --no-ansi \
+    && chown -R ${USERNAME}:${USERNAME} /opt/poetry.lock
 
 WORKDIR ${SRC_ROOT_PATH}
 USER ${USERNAME}
