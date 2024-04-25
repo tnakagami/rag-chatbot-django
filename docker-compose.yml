@@ -29,10 +29,12 @@ services:
     networks:
       - rag-app
     volumes:
+      - ./static:/static:ro
       - ./backend/app:/opt/app
       - ./backend/pyproject.toml:/opt/pyproject.toml
+      - ./backend/bashrc:/opt/home/.bashrc:ro
     ports:
-      - 8192:8000
+      - 7654:8000
     depends_on:
       database:
         condition: service_healthy
@@ -55,7 +57,7 @@ services:
     networks:
       - rag-app
     volumes:
-      - database:/var/lib/database/data
+      - database:/var/lib/postgresql/data
     expose:
       - 5432
     restart: always

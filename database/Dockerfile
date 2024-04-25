@@ -8,7 +8,7 @@ ENV POSTGRES_USER= \
     POSTGRES_PASSWORD= \
     POSTGRES_DB= \
     POSTGRES_PORT=5432 \
-    PGDATA=/var/lib/postgresql/data
+    PGDATA=/var/lib/postgresql/data/pgdata
 
 VOLUME ["/var/lib/postgresql/data"]
 

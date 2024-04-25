@@ -28,7 +28,7 @@ while [ -n "$1" ]; do
 
     build )
       # build
-      docker-compose build
+      docker-compose build --no-cache --progress=plain
       # remove old images
       docker images | grep none | awk '{print $3;}' | xargs -I{} docker rmi {}
       shift

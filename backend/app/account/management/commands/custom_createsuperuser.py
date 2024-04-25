@@ -25,6 +25,7 @@ class Command(createsuperuser.Command):
       'username': username,
       'email': email,
       'password': password,
+      'screen_name': 'admin',
     }
     exists = self.UserModel._default_manager.db_manager(database).filter(username=username).exists()
 

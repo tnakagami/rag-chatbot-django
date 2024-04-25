@@ -52,3 +52,30 @@ docker-compose run --rm -it --entrypoint django-admin makemessages -l ja backend
 #
 docker-compose run --rm -it --entrypoint django-admin compilemessages backend
 ```
+
+## Test
+### Preparations
+In this project, `pytest` and pytest's third packages are used. In particular, `pytest-django` is useful when I develop web applications by using the Django framework.
+
+So I prepare `conftest.py` in the top directory of `all_tests`. The details are as follows:
+
+```python
+# all_tests/conftest.py
+import pytest
+
+@pytest.fixture(scope='session', autouse=True)
+def django_db_setup(django_db_setup):
+  pass
+```
+
+Then, I create test scripts for each application. See [this directory](./app/all_tests) in detail.
+
+### Execution
+Enter the following command on your terminal, then execute `pytest` command.
+
+```bash
+# In the host environment
+docker-compose run --rm -it --entrypoint /bin/bash backend
+# In the docker environment
+pytest
+```

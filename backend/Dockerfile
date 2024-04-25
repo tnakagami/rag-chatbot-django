@@ -16,16 +16,18 @@ ENV PYTHONUNBUFFERED=1 \
 RUN    apt-get update \
     && apt-get install -y libmagic1 gcc libc-dev python3-dev libpq-dev \
     && addgroup --gid ${GID} ${USERNAME} \
-    && adduser --home /opt --shell /bin/bash --uid ${UID} --gid ${GID} --disabled-password ${USERNAME} \
+    && adduser --home /opt/home --shell /bin/bash --uid ${UID} --gid ${GID} --disabled-password ${USERNAME} \
     && pip install poetry \
     && mkdir -p ${SRC_ROOT_PATH} \
+    && chown -R ${USERNAME}:${USERNAME} /opt/home \
     && rm -rf /var/lib/apt/lists/*
 
 COPY ./pyproject.toml /opt/pyproject.toml
 
 RUN    cd /opt \
     && poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi
+    && poetry install --no-interaction --no-ansi \
+    && chown -R ${USERNAME}:${USERNAME} /opt/poetry.lock
 
 WORKDIR ${SRC_ROOT_PATH}
 USER ${USERNAME}
