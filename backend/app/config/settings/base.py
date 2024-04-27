@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'markdownx',
     # apps
     'account.apps.AccountConfig',
+    'chatbot.apps.ChatbotConfig',
 ]
 
 MIDDLEWARE = [
