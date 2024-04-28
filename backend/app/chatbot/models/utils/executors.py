@@ -1,4 +1,4 @@
-from typing import Any, List, cast
+from typing import Any, List, cast, Sequence
 from langchain.tools import BaseTool
 from langchain.tools.render import render_text_description
 from langchain_core.language_models.base import LanguageModelLike
@@ -23,12 +23,12 @@ class _LiberalToolMessage(ToolMessage):
   content: Any
 
 class _BaseExecutor:
-  def __init__(self, tools: List[BaseTool], is_interrupt: bool = False):
+  def __init__(self, tools: List[BaseTool], is_interrupt: bool, checkpoint: Any):
     self.llm = None
     self.tool_executor = ToolExecutor(tools)
     self.is_interrupt = is_interrupt
-    self.template = None
-    self.checkpoint = None
+    self.template = '{system_message}'
+    self.checkpoint = checkpoint
 
   def get_messages(self, messages, system_message):
     raise NotImplemented
@@ -65,13 +65,16 @@ class _BaseExecutor:
     app = workflow.compile(
       checkpoint=self.checkpoint,
       interrupt_before=['action'] if self.is_interrupt else None,
+    ).with_types(
+      input_type=Messages,
+      output_type=Sequence[AnyMessage],
     )
 
     return app
 
 class ToolExecutor(_BaseExecutor):
-  def __init__(self, llm: LanguageModelLike, tools: List[BaseTool], is_interrupt: bool = False):
-    super().__init__(tools, is_interrupt)
+  def __init__(self, llm: LanguageModelLike, tools: List[BaseTool], is_interrupt: bool, checkpoint: Any):
+    super().__init__(tools, is_interrupt, checkpoint)
     self.llm = llm.bind_tools(tools) if tools else llm
     self.template = '{system_message}'
 
@@ -112,8 +115,8 @@ class ToolExecutor(_BaseExecutor):
     return tool_messages
 
 class XmlExecutor(_BaseExecutor):
-  def __init__(self, llm: LanguageModelLike, tools: List[BaseTool], is_interrupt: bool = False):
-    super().__init__(tools, is_interrupt)
+  def __init__(self, llm: LanguageModelLike, tools: List[BaseTool], is_interrupt: bool, checkpoint: Any):
+    super().__init__(tools, is_interrupt, checkpoint)
     self.llm = llm.bind(stop=['</tool_input>', '<observation>'])
     self.template = '\n'.join([
       '{system_message}', ''

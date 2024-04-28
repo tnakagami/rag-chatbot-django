@@ -1,8 +1,10 @@
 from .rag import Chatbot, Embedding
-from .agents import GAIType, ToolType
+from .agents import AgentArgs, ToolArgs, AgentType, ToolType
 
 __all__ = [
-  'GAIType',
+  'AgentArgs',
+  'ToolArgs',
+  'AgentType',
   'ToolType',
   'Chatbot',
   'Embedding',

@@ -7,7 +7,7 @@ from .llms import (
   OllamaLLM,
   GeminiLLM,
 )
-from .executers import (
+from .executors import (
   BaseTool,
   ToolExecutor,
   XmlExecutor
@@ -37,7 +37,7 @@ __all__ = [
   'FireworksLLM',
   'OllamaLLM',
   'GeminiLLM',
-  # Executers
+  # Executors
   'BaseTool',
   'ToolExecutor',
   'XmlExecutor',

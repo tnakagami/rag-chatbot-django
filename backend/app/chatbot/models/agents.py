@@ -1,6 +1,6 @@
 import pickle
-import dataclasses
-from typing import Dict, Tuple, List
+from dataclasses import dataclass
+from typing import Dict, Tuple, List, Union, Any
 from django.db import models
 from django.utils.translation import gettext_lazy
 from django.core.exceptions import ValidationError
@@ -23,13 +23,27 @@ from .utils import (
   DDGSearchTool,
   SecFilingsTool,
   PressReleasesTool,
+  PubMedTool,
   TavilySearchTool,
   TavilyAnswerTool,
   YouSearchTool,
   WikipediaTool,
 )
 
-class GAIType(models.IntegerChoices):
+@dataclass
+class AgentArgs:
+  tools: List[BaseTool]
+  checkpoint: Any
+  system_message: str = str(gettext_lazy('You are a helpful assistant.'))
+  is_interrupt: bool = False
+
+@dataclass
+class ToolArgs:
+  assistant_id: str
+  thread_id: str
+  vector_store: Any
+
+class AgentType(models.IntegerChoices):
   OPENAI    = 1, gettext_lazy('Open AI')
   AZURE     = 2, gettext_lazy('Azure')
   ANTHROPIC = 3, gettext_lazy('Anthropic (Claude 2)')
@@ -45,28 +59,28 @@ class GAIType(models.IntegerChoices):
   def _llm_type(self):
     # Patterns of LLM's chatbot
     lookup = {
-      GAIType.OPENAI:    OpenAILLM,
-      GAIType.AZURE:     AzureOpenAILLM,
-      GAIType.ANTHROPIC: AnthropicLLM,
-      GAIType.BEDROCK:   BedrockLLM,
-      GAIType.FIREWORKS: FireworksLLM,
-      GAIType.OLLAMA:    OllamaLLM,
-      GAIType.GEMINI:    GeminiLLM,
+      AgentType.OPENAI:    OpenAILLM,
+      AgentType.AZURE:     AzureOpenAILLM,
+      AgentType.ANTHROPIC: AnthropicLLM,
+      AgentType.BEDROCK:   BedrockLLM,
+      AgentType.FIREWORKS: FireworksLLM,
+      AgentType.OLLAMA:    OllamaLLM,
+      AgentType.GEMINI:    GeminiLLM,
     }
 
     return lookup[self]
 
   @property
-  def _executer_type(self):
-    # Patterns of executer
+  def _executor_type(self):
+    # Patterns of executor
     lookup = {
-      GAIType.OPENAI:    ToolExecutor,
-      GAIType.AZURE:     ToolExecutor,
-      GAIType.ANTHROPIC: ToolExecutor,
-      GAIType.BEDROCK:   XmlExecutor,
-      GAIType.FIREWORKS: ToolExecutor,
-      GAIType.OLLAMA:    ToolExecutor,
-      GAIType.GEMINI:    ToolExecutor,
+      AgentType.OPENAI:    ToolExecutor,
+      AgentType.AZURE:     ToolExecutor,
+      AgentType.ANTHROPIC: ToolExecutor,
+      AgentType.BEDROCK:   XmlExecutor,
+      AgentType.FIREWORKS: ToolExecutor,
+      AgentType.OLLAMA:    ToolExecutor,
+      AgentType.GEMINI:    ToolExecutor,
     }
 
     return lookup[self]
@@ -92,7 +106,7 @@ class GAIType(models.IntegerChoices):
 
       if matched:
         _, label = matched[0]
-        err = f'{label} is the invalid GAIType'
+        err = f'{label} is the invalid AgentType'
 
         raise ValidationError(
           gettext_lazy(err),
@@ -103,36 +117,32 @@ class GAIType(models.IntegerChoices):
 
   @classmethod
   def get_llm_fields(cls, gai_id: int, is_embedded=False):
-    instance = gai_id._llm_type()
+    _self = cls(gai_id)
+    instance = _self._llm_type()
     fields = instance.get_fields(is_embedded=is_embedded)
 
     return fields
 
   @classmethod
-  def get_executer(
+  def get_executor(
     cls,
     gai_id: int,
     config: Dict,
-    system_message: str,
-    tools: List[BaseTool],
-    is_interrupt: bool = False,
-    *argv: Tuple,
-    **kwargs: Dict,
+    args: AgentArgs,
   ):
     _self = cls(gai_id)
     instance = _self._llm_type(**config)
     llm = instance.get_llm(is_embedded=False)
-    instance = _self._executer_type(llm, tools, is_interrupt)
-    executer = instance.get_app(system_message)
+    instance = _self._executor_type(llm, args.tools, args.is_interrupt, args.checkpoint)
+    executor = instance.get_app(args.system_message)
 
-    return executer
+    return executor
 
   @classmethod
   def get_embedding(
     cls,
     gai_id: int,
-    *argv: Tuple,
-    **kwargs: Dict,
+    config: Dict,
   ):
     _self = cls(gai_id)
     instance = _self._llm_type(**config)
@@ -141,7 +151,6 @@ class GAIType(models.IntegerChoices):
     return embedding
 
 class ToolType(models.IntegerChoices):
-  from langchain_core.vectorstores import VectorStore
   RETRIEVER          =  1, gettext_lazy('Retriever')
   ACTION_SERVER      =  2, gettext_lazy('Action Server')
   ARXIV              =  3, gettext_lazy('Arxiv')
@@ -178,15 +187,32 @@ class ToolType(models.IntegerChoices):
     return lookup[self]
 
   @classmethod
+  def get_config_field(
+    cls,
+    tool_id: int,
+    config: Dict,
+  ):
+    _self = cls(tool_id)
+    instance = _self.tool_type(config)
+    fields = instance.get_config_fields()
+
+    return fields
+
+  @classmethod
   def get_tool(
     cls,
     tool_id: int,
     config: Dict,
-    vector_store: VectorStore,
-    *argv: Tuple,
-    **kwargs: Dict,
+    args: ToolArgs,
   ):
     _self = cls(tool_id)
-    tool = None
+    instance = _self.tool_type(config)
 
-    return tool
+    if _self == ToolType.RETRIEVER:
+      callback = instance.get_tools()
+      retriever = None
+      tools = callback(retriever)
+    else:
+      tools = instance.get_tools()
+
+    return tools
