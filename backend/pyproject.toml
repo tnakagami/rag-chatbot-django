@@ -65,9 +65,14 @@ markers = [
   "model: marks tests as Model",
   "form: marks tests as Form",
   "view: marks tests as View",
-  "drf: marks tests as Django REST framework"
+  "drf: marks tests as Django REST framework",
+  "private: marks tests as Private class/method/function",
+  "util: marks tests as Utility class/method/function"
 ]
 cache_dir = "/opt/home/.cache"
+filterwarnings = [
+  "ignore::DeprecationWarning",
+]
 
 [build-system]
 requires = ["poetry-core"]

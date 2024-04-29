@@ -1,6 +1,6 @@
-import pickle
 from dataclasses import dataclass
 from typing import Dict, Tuple, List, Union, Any
+from functools import wraps
 from django.db import models
 from django.utils.translation import gettext_lazy
 from django.core.exceptions import ValidationError
@@ -86,13 +86,10 @@ class AgentType(models.IntegerChoices):
     return lookup[self]
 
   @classmethod
-  def _get_invalid_types(cls):
-    return [cls.ANTHROPIC]
-
-  @classmethod
   def get_embedding_choices(cls):
     # Filtering choices
-    invalid_vals = [member.value for member in cls._get_invalid_types()]
+    _invalids = [cls.ANTHROPIC]
+    invalid_vals = [member.value for member in _invalids]
     _choices = [(value, label) for value, label in cls.choices if value not in invalid_vals]
 
     return _choices
@@ -101,23 +98,25 @@ class AgentType(models.IntegerChoices):
   def get_embedding_validator(cls):
     invalids = cls.get_embedding_choices()
 
+    @wraps(cls.get_embedding_validator)
     def validator(value):
       matched = [(item, label) for item, label in invalids if item != value]
 
       if matched:
         _, label = matched[0]
-        err = f'{label} is the invalid AgentType'
 
         raise ValidationError(
-          gettext_lazy(err),
+          gettext_lazy(f'{label} is the invalid AgentType'),
           params={'value': value}
         )
+
+      return value
 
     return validator
 
   @classmethod
-  def get_llm_fields(cls, gai_id: int, is_embedded=False):
-    _self = cls(gai_id)
+  def get_llm_fields(cls, agent_id: int, is_embedded=False):
+    _self = cls(agent_id)
     instance = _self._llm_type()
     fields = instance.get_fields(is_embedded=is_embedded)
 
@@ -126,11 +125,11 @@ class AgentType(models.IntegerChoices):
   @classmethod
   def get_executor(
     cls,
-    gai_id: int,
+    agent_id: int,
     config: Dict,
     args: AgentArgs,
   ):
-    _self = cls(gai_id)
+    _self = cls(agent_id)
     instance = _self._llm_type(**config)
     llm = instance.get_llm(is_embedded=False)
     instance = _self._executor_type(llm, args.tools, args.is_interrupt, args.checkpoint)
@@ -141,10 +140,10 @@ class AgentType(models.IntegerChoices):
   @classmethod
   def get_embedding(
     cls,
-    gai_id: int,
+    agent_id: int,
     config: Dict,
   ):
-    _self = cls(gai_id)
+    _self = cls(agent_id)
     instance = _self._llm_type(**config)
     embedding = instance.get_llm(is_embedded=True)
 
@@ -166,7 +165,7 @@ class ToolType(models.IntegerChoices):
   WIKIPEDIA          = 13, gettext_lazy('Wikipedia')
 
   @property
-  def tool_type(self):
+  def _tool_type(self):
     # Patterns of tool
     lookup = {
       ToolType.RETRIEVER:          RetrievalTool,
@@ -193,7 +192,7 @@ class ToolType(models.IntegerChoices):
     config: Dict,
   ):
     _self = cls(tool_id)
-    instance = _self.tool_type(config)
+    instance = _self._tool_type(config)
     fields = instance.get_config_fields()
 
     return fields
@@ -206,7 +205,7 @@ class ToolType(models.IntegerChoices):
     args: ToolArgs,
   ):
     _self = cls(tool_id)
-    instance = _self.tool_type(config)
+    instance = _self._tool_type(config)
 
     if _self == ToolType.RETRIEVER:
       callback = instance.get_tools()

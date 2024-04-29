@@ -1,4 +1,4 @@
-from typing import Union, Any, Mapping
+from typing import Dict, List, Union, Any, Mapping
 from dataclasses import dataclass, asdict
 from google.oauth2.service_account import Credentials
 from ._client import get_client
@@ -129,11 +129,10 @@ class AnthropicLLM(_BaseLLM):
       raise ValueError(f'[{self.__class__.__name__}] Embedding model is not implemented')
     else:
       llm = CustomChatAnthropic(
-        http_client=get_client(proxy=self.proxy, is_async=False),
-        http_async_client=get_client(proxy=self.proxy, is_async=True),
         model=self.model,
         api_key=self.api_key,
         anthropic_api_url=self.endpoint,
+        proxy_url=self.proxy,
         temperature=self.temperature,
         max_retries=self.max_retries,
         streaming=self.stream,
@@ -211,17 +210,18 @@ class FireworksLLM(_BaseLLM):
       llm = CustomFireworksEmbeddings(
         http_client=get_client(proxy=self.proxy, is_async=False),
         model=self.model,
-        api_key=self.api_key,
+        fireworks_api_key=self.api_key,
         base_url=self.endpoint,
       )
     else:
+      model_kwargs = {'max_retries': self.max_retries}
       llm = CustomChatFireworks(
         model=self.model,
         api_key=self.api_key,
         base_url=self.endpoint,
         temperature=self.temperature,
-        max_retries=self.max_retries,
         streaming=self.stream,
+        model_kwargs=model_kwargs,
         proxy_url=self.proxy,
       )
 

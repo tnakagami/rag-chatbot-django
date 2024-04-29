@@ -6,7 +6,7 @@ from .agents import AgentArgs, ToolArgs, AgentType, ToolType
 
 User = get_user_model()
 
-class _BaseConfig(models.Model):
+class BaseConfig(models.Model):
   user = models.ForeignKey(
     User,
     on_delete=models.CASCADE,
@@ -23,20 +23,20 @@ class _BaseConfig(models.Model):
     help_text=gettext_lazy('Config'),
   )
 
-class Chatbot(_BaseConfig):
-  chatbot = models.IntegerField(
+class Agent(BaseConfig):
+  agent_type = models.IntegerField(
     choices=AgentType.choices,
     default=AgentType.OPENAI,
-    help_text=gettext_lazy('Chatbot type'),
+    help_text=gettext_lazy('Agent type'),
   )
 
   def __str__(self):
     return f'{self.name} ({self.chatbot})'
 
   def get_executor(self, args: AgentArgs):
-    return AgentType.get_executor(self.chatbot, self.config, args)
+    return AgentType.get_executor(self.agent_type, self.config, args)
 
-class Embedding(_BaseConfig):
+class Embedding(BaseConfig):
   emb = models.IntegerField(
     choices=AgentType.get_embedding_choices(),
     default=AgentType.OPENAI,
@@ -48,12 +48,12 @@ class Embedding(_BaseConfig):
     return f'{self.name} ({self.emb})'
 
   def get_embedding(self):
-    embedding = AgentType.get_embedding(self.emb)
+    embedding = AgentType.get_embedding(self.emb, self.config)
 
     return embedding
 
-class Tool(_BaseConfig):
-  tool = models.IntegerField(
+class Tool(BaseConfig):
+  tool_type = models.IntegerField(
     choices=ToolType.choices,
     default=ToolType.RETRIEVER,
     help_text=gettext_lazy('Tool type'),
@@ -63,4 +63,4 @@ class Tool(_BaseConfig):
     return f'{self.name} ({self.tool})'
 
   def get_tool(self, args: ToolArgs):
-    return ToolType.get_tool(self.tool, self.config, args)
+    return ToolType.get_tool(self.tool_type, self.config, args)

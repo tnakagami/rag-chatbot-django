@@ -1,4 +1,4 @@
-from .rag import Chatbot, Embedding
+from .rag import Agent, Embedding, Tool
 from .agents import AgentArgs, ToolArgs, AgentType, ToolType
 
 __all__ = [
@@ -6,6 +6,8 @@ __all__ = [
   'ToolArgs',
   'AgentType',
   'ToolType',
-  'Chatbot',
+  # Django models
+  'Agent',
   'Embedding',
+  'Tool',
 ]

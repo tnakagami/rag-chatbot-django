@@ -15,6 +15,8 @@ def _get_wrapper(values: Dict, key: str, default=None):
   return out
 
 class CustomChatAnthropic(ChatAnthropic):
+  proxy_url: Optional[str] = None
+
   @root_validator()
   def validate_environment(cls, values: Dict) -> Dict:
     _values = super().validate_environment(values)
@@ -24,10 +26,9 @@ class CustomChatAnthropic(ChatAnthropic):
       'max_retries':     _values['max_retries'],
       'default_headers': _values.get('default_headers'),
     }
-    sync_specific = {'http_client': _get_wrapper(values, 'http_client')}
-    _values['_client'] = anthropic.Client(**client_params, **sync_specific)
-    async_specific = {'http_client': _get_wrapper(values, 'http_async_client')}
-    _values['_async_client'] = anthropic.AsyncClient(**client_params, **async_specific)
+    proxy_url = _get_wrapper(values, 'proxy_url')
+    _values['_client'] = anthropic.Client(**client_params, proxies=proxy_url)
+    _values['_async_client'] = anthropic.AsyncClient(**client_params, proxies=proxy_url)
 
     return _values
 
@@ -55,13 +56,13 @@ class CustomChatFireworks(ChatFireworks):
 
 class CustomFireworksEmbeddings(FireworksEmbeddings):
   http_client: Union[Any, None] = None
-  base_url: str
+  base_url: Union[str, None] = None
 
   @root_validator()
   def validate_environment(cls, values: Dict) -> Dict:
     _values = super().validate_environment(values)
     api_key = _get_wrapper(_values, 'fireworks_api_key')
-    base_url = _get_wrapper(values, 'base_url', default='https://api.fireworks.ai/inference/v1')
+    _values['base_url'] = _get_wrapper(values, 'base_url', default='https://api.fireworks.ai/inference/v1')
     _values['model'] = _get_wrapper(values, 'model', default='nomic-ai/nomic-embed-text-v1.5')
 
     if api_key:
@@ -69,7 +70,7 @@ class CustomFireworksEmbeddings(FireworksEmbeddings):
 
     client_params = {
       'api_key':  api_key,
-      'base_url': base_url,
+      'base_url': _values['base_url'],
       'http_client': _get_wrapper(values, 'http_client')
     }
     _values['_client'] = openai.OpenAI(**client_params)

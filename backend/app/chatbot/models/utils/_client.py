@@ -8,10 +8,10 @@ def get_client(proxy, is_async=True):
   if proxy_url:
     parsed_url = urlparse(proxy_url)
 
-    if parsed_url.scheme and parsed_url.netloc:
+    if parsed_url.scheme and parsed_url.netloc and parsed_url.hostname:
       if is_async:
-        client = httpx.AsyncClient(proxies=proxy_url)
+        client = httpx.AsyncClient(proxy=proxy_url)
       else:
-        client = httpx.Client(proxies=proxy_url)
+        client = httpx.Client(proxy=proxy_url)
 
   return client
