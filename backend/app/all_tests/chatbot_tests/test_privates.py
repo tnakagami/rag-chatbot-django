@@ -18,22 +18,6 @@ from fireworks.client.embedding import EmbeddingV1
 from fireworks.client.rerank import RerankV1
 from fireworks.client.image import ImageInference
 
-def _client_non_proxy_checker(client_without_proxy):
-  transport = list(client_without_proxy._mounts.values())
-
-  return len(transport) == 0
-
-def _client_proxy_checker(client_with_proxy, expected):
-  transport = list(client_with_proxy._mounts.values())[0]
-  _url = transport._pool._proxy_url
-
-  return all([
-    _url.scheme == expected['scheme'],
-    _url.host == expected['host'],
-    _url.port == expected['port'],
-    _url.target == expected['target'],
-  ])
-
 @pytest.fixture
 def get_firework_args():
   kwargs = {
@@ -67,6 +51,17 @@ def get_chat_fireworks_args():
   }
 
   return kwargs, model_kwargs
+
+@pytest.fixture
+def get_dalle_api_wrapper_args():
+  kwargs = {
+    'model': 'dall-e-model',
+    'api_key': 'api-key',
+    'base_url': 'http://example.com/base',
+    'max_retries': 10,
+  }
+
+  return kwargs
 
 @pytest.fixture
 def mock_post_request_of_kay_retriever(mocker):
@@ -128,9 +123,7 @@ def mock_call_kay_is_failed(get_kay_retriever_args, mocker):
 
   return mocker, kwargs
 
-
-
-
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize([
   'proxy',
@@ -147,6 +140,7 @@ def mock_call_kay_is_failed(get_kay_retriever_args, mocker):
   ('https://example.co.jp', True, httpx.AsyncClient, b'https', b'example.co.jp', None, b'/'),
 ])
 def test_check_valid_client(
+  client_proxy_checker,
   proxy,
   is_async,
   expected_class,
@@ -164,8 +158,9 @@ def test_check_valid_client(
   }
 
   assert isinstance(instance, expected_class)
-  assert _client_proxy_checker(instance, expected_proxy)
+  assert client_proxy_checker(instance, expected_proxy)
 
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize([
   'proxy',
@@ -187,6 +182,7 @@ def test_check_invalid_client(proxy, is_async):
 
   assert instance is None
 
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize('cls', [_customFireworks.CustomFireworks, _customFireworks.CustomAsyncFireworks])
 def test_check_class_members_of_custom_fireworks(get_firework_args, cls):
@@ -201,6 +197,7 @@ def test_check_class_members_of_custom_fireworks(get_firework_args, cls):
   assert isinstance(instance.embeddings, EmbeddingV1)
   assert isinstance(instance.rerank, RerankV1)
 
+@pytest.mark.chatbot
 @pytest.mark.private
 def test_enter_and_exit_for_custom_fireworks_sync_client(get_firework_args):
   kwargs = get_firework_args
@@ -211,6 +208,7 @@ def test_enter_and_exit_for_custom_fireworks_sync_client(get_firework_args):
   except Exception:
     pytest.fail('Raise Exception when the instance of CustomFireworks is executed by `with` statement.')
 
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.asyncio
 async def test_enter_and_exit_for_custom_fireworks_async_client(get_firework_args):
@@ -222,12 +220,13 @@ async def test_enter_and_exit_for_custom_fireworks_async_client(get_firework_arg
   except Exception:
     pytest.fail('Raise Exception when the instance of CustomAsyncFireworks is executed by `with` statement.')
 
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize('cls', [
   _customFireworks.CustomFireworks,
   _customFireworks.CustomAsyncFireworks,
 ])
-def test_check_firewarks_input_args_without_proxy(get_firework_args, cls):
+def test_check_firewarks_input_args_without_proxy(get_firework_args, client_non_proxy_checker, cls):
   kwargs = get_firework_args
   instance = cls(**kwargs)
   client_v1 = instance._client_v1
@@ -235,9 +234,10 @@ def test_check_firewarks_input_args_without_proxy(get_firework_args, cls):
   assert client_v1.api_key == kwargs['api_key']
   assert client_v1.base_url == kwargs['base_url']
   assert client_v1.request_timeout == kwargs['timeout']
-  assert _client_non_proxy_checker(client_v1._client)
-  assert _client_non_proxy_checker(client_v1._async_client)
+  assert client_non_proxy_checker(client_v1._client)
+  assert client_non_proxy_checker(client_v1._async_client)
 
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize([
   'cls',
@@ -252,6 +252,7 @@ def test_check_firewarks_input_args_without_proxy(get_firework_args, cls):
 ])
 def test_check_firewarks_input_args_with_proxy(
   get_firework_args,
+  client_proxy_checker,
   cls,
   proxy_url,
   expected_scheme,
@@ -272,48 +273,47 @@ def test_check_firewarks_input_args_with_proxy(
   assert client_v1.api_key == kwargs['api_key']
   assert client_v1.base_url == kwargs['base_url']
   assert client_v1.request_timeout == kwargs['timeout']
-  assert _client_proxy_checker(client_v1._client, expected_proxy)
-  assert _client_proxy_checker(client_v1._async_client, expected_proxy)
+  assert client_proxy_checker(client_v1._client, expected_proxy)
+  assert client_proxy_checker(client_v1._async_client, expected_proxy)
 
+@pytest.mark.chatbot
 @pytest.mark.private
-@pytest.mark.parametrize([
-  'proxy_url',
-  'expected_scheme',
-  'expected_host',
-  'expected_port',
-  'expected_target',
-], [
-  (None, b'', b'', None, b'/'),
-  ('http://proxy.com:8000/valid', b'http', b'proxy.com', 8000, b'/valid'),
-])
-def test_check_custom_chat_anthropic(
-  get_chat_anthropic_args,
-  proxy_url,
-  expected_scheme,
-  expected_host,
-  expected_port,
-  expected_target,
-):
+def test_check_non_proxy_of_custom_chat_anthropic(get_chat_anthropic_args, client_non_proxy_checker):
   kwargs = get_chat_anthropic_args
-  llm = _customLLMWrapper.CustomChatAnthropic(**kwargs, proxy_url=proxy_url)
-  expected_proxy = {
-    'scheme': expected_scheme,
-    'host': expected_host,
-    'port': expected_port,
-    'target': expected_target,
-  }
-  sync_client = llm._client._client
-  async_client = llm._async_client._client
+  llm = _customLLMWrapper.CustomChatAnthropic(**kwargs, proxy_url=None)
 
   assert isinstance(llm, _customLLMWrapper.CustomChatAnthropic)
   assert llm.model == kwargs['model']
   assert llm.anthropic_api_key.get_secret_value() == kwargs['api_key']
   assert llm.anthropic_api_url == kwargs['anthropic_api_url']
   assert llm.max_retries == kwargs['max_retries']
-  assert llm.proxy_url is None if proxy_url is None else llm.proxy_url == proxy_url
-  assert _client_non_proxy_checker(sync_client) if proxy_url is None else _client_proxy_checker(sync_client, expected_proxy)
-  assert _client_non_proxy_checker(async_client) if proxy_url is None else _client_proxy_checker(async_client, expected_proxy)
+  assert llm.proxy_url is None
+  assert client_non_proxy_checker(llm._client._client)
+  assert client_non_proxy_checker(llm._async_client._client)
 
+@pytest.mark.chatbot
+@pytest.mark.private
+def test_check_proxy_of_custom_chat_anthropic(get_chat_anthropic_args, client_proxy_checker):
+  kwargs = get_chat_anthropic_args
+  proxy_url = 'http://proxy.com:8000/valid'
+  expected_proxy = {
+    'scheme': b'http',
+    'host': b'proxy.com',
+    'port': 8000,
+    'target': b'/valid',
+  }
+  llm = _customLLMWrapper.CustomChatAnthropic(**kwargs, proxy_url=proxy_url)
+
+  assert isinstance(llm, _customLLMWrapper.CustomChatAnthropic)
+  assert llm.model == kwargs['model']
+  assert llm.anthropic_api_key.get_secret_value() == kwargs['api_key']
+  assert llm.anthropic_api_url == kwargs['anthropic_api_url']
+  assert llm.max_retries == kwargs['max_retries']
+  assert llm.proxy_url == proxy_url
+  assert client_proxy_checker(llm._client._client, expected_proxy)
+  assert client_proxy_checker(llm._async_client._client, expected_proxy)
+
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize([
   'model_name',
@@ -351,6 +351,7 @@ def test_invalid_args_of_custom_chat_anthropic(
 
     assert error_target in str(ex.value)
 
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize('proxy_url', [None, 'http://proxy.com:8000/valid'])
 def test_check_custom_chat_fireworks(get_chat_fireworks_args, proxy_url):
@@ -367,6 +368,7 @@ def test_check_custom_chat_fireworks(get_chat_fireworks_args, proxy_url):
   assert isinstance(sync_client, ChatCompletionV2)
   assert isinstance(async_client, ChatCompletionV2)
 
+@pytest.mark.chatbot
 @pytest.mark.private
 def test_invalid_api_key_for_custom_chat_fireworks(get_chat_fireworks_args):
   kwargs, _ = get_chat_fireworks_args
@@ -377,59 +379,42 @@ def test_invalid_api_key_for_custom_chat_fireworks(get_chat_fireworks_args):
 
   assert 'fireworks_api_key' in str(ex.value)
 
+@pytest.mark.chatbot
 @pytest.mark.private
-@pytest.mark.parametrize([
-  'model_name',
-  'api_key',
-  'endpoint',
-  'proxy_url',
-  'expected_model',
-  'expected_key',
-  'expected_url',
-  'expected_scheme',
-  'expected_host',
-  'expected_port',
-  'expected_target',
-], [
-  (None, 'api-key', None, None,
-   'nomic-ai/nomic-embed-text-v1.5', 'api-key', 'https://api.fireworks.ai/inference/v1', b'', b'', None, b'/'),
-  ('fireworks-embeddings-model', 'api-key', 'http://example.com/foo', 'http://proxy.com:8000/valid', 
-   'fireworks-embeddings-model', 'api-key', 'http://example.com/foo', b'http', b'proxy.com', 8000, b'/valid'),
-])
-def test_check_custom_fireworks_embeddings(
-  model_name,
-  api_key,
-  endpoint,
-  proxy_url,
-  expected_model,
-  expected_key,
-  expected_url,
-  expected_scheme,
-  expected_host,
-  expected_port,
-  expected_target,
-):
-  params = {
-    'model': model_name,
-    'fireworks_api_key': api_key,
-    'base_url': endpoint,
-    'http_client': _client.get_client(proxy_url, is_async=False),
-  }
-  kwargs = {key: val for key, val in params.items() if val is not None}
-  llm = _customLLMWrapper.CustomFireworksEmbeddings(**kwargs)
-  sync_client = llm._client._client
-  expected_proxy = {
-    'scheme': expected_scheme,
-    'host': expected_host,
-    'port': expected_port,
-    'target': expected_target,
-  }
+def test_check_non_proxy_of_custom_fireworks_embeddings(client_non_proxy_checker):
+  api_key = 'api-key'
+  llm = _customLLMWrapper.CustomFireworksEmbeddings(fireworks_api_key=api_key)
+  expected_model = 'nomic-ai/nomic-embed-text-v1.5'
+  expected_url = 'https://api.fireworks.ai/inference/v1'
 
   assert llm.model == expected_model
-  assert llm.fireworks_api_key.get_secret_value() == expected_key
+  assert llm.fireworks_api_key.get_secret_value() == api_key
   assert llm.base_url == expected_url
-  assert _client_non_proxy_checker(sync_client) if proxy_url is None else _client_proxy_checker(sync_client, expected_proxy)
+  assert client_non_proxy_checker(llm._client._client)
 
+@pytest.mark.chatbot
+@pytest.mark.private
+def test_check_proxy_of_custom_fireworks_embeddings(client_proxy_checker):
+  kwargs = {
+    'model': 'fireworks-embeddings-model',
+    'fireworks_api_key': 'api-key',
+    'base_url': 'http://example.com/foo',
+    'http_client': _client.get_client('http://proxy.com:8000/valid', is_async=False),
+  }
+  llm = _customLLMWrapper.CustomFireworksEmbeddings(**kwargs)
+  expected_proxy = {
+    'scheme': b'http',
+    'host': b'proxy.com',
+    'port': 8000,
+    'target': b'/valid',
+  }
+
+  assert llm.model == kwargs['model']
+  assert llm.fireworks_api_key.get_secret_value() == kwargs['fireworks_api_key']
+  assert llm.base_url == kwargs['base_url']
+  assert client_proxy_checker(llm._client._client, expected_proxy)
+
+@pytest.mark.chatbot
 @pytest.mark.private
 def test_invalid_api_key_for_custom_fireworks_embeddings():
   with pytest.raises(OpenAIError) as ex:
@@ -438,6 +423,48 @@ def test_invalid_api_key_for_custom_fireworks_embeddings():
 
   assert 'api_key' in err_msg and 'OPENAI_API_KEY' in err_msg
 
+@pytest.mark.chatbot
+@pytest.mark.private
+def test_check_custom_dalle_api_wrapper_without_proxy(get_dalle_api_wrapper_args, client_non_proxy_checker):
+  kwargs = get_dalle_api_wrapper_args
+  wrapper = _customRetriever.CustomDallEAPIWrapper(**kwargs)
+  _sync_client = wrapper.client._client._client
+  async_client = wrapper.async_client._client._client
+
+  assert wrapper.model_name == kwargs['model']
+  assert wrapper.openai_api_key == kwargs['api_key']
+  assert wrapper.openai_api_base == kwargs['base_url']
+  assert wrapper.max_retries == kwargs['max_retries']
+  assert client_non_proxy_checker(_sync_client)
+  assert client_non_proxy_checker(async_client)
+
+@pytest.mark.chatbot
+@pytest.mark.private
+def test_check_custom_dalle_api_wrapper_with_proxy(get_dalle_api_wrapper_args, client_proxy_checker):
+  proxy_url = 'http://proxy.com:8000/valid'
+  kwargs = get_dalle_api_wrapper_args
+  wrapper = _customRetriever.CustomDallEAPIWrapper(
+    **kwargs,
+    http_client=_client.get_client(proxy_url, is_async=False),
+    http_async_client=_client.get_client(proxy_url, is_async=True),
+  )
+  expected_proxy = {
+    'scheme': b'http',
+    'host': b'proxy.com',
+    'port': 8000,
+    'target': b'/valid',
+  }
+  _sync_client = wrapper.client._client._client
+  async_client = wrapper.async_client._client._client
+
+  assert wrapper.model_name == kwargs['model']
+  assert wrapper.openai_api_key == kwargs['api_key']
+  assert wrapper.openai_api_base == kwargs['base_url']
+  assert wrapper.max_retries == kwargs['max_retries']
+  assert client_proxy_checker(_sync_client, expected_proxy)
+  assert client_proxy_checker(async_client, expected_proxy)
+
+@pytest.mark.chatbot
 @pytest.mark.private
 def test_check_custom_kay_retriever(get_kay_retriever_args):
   kwargs = get_kay_retriever_args
@@ -447,6 +474,7 @@ def test_check_custom_kay_retriever(get_kay_retriever_args):
   assert instance.dataset_id == kwargs['dataset_id']
   assert instance.data_types == kwargs['data_types']
 
+@pytest.mark.chatbot
 @pytest.mark.private
 def test_invalid_dataset_id_for_custom_kay_retriever(get_kay_retriever_args):
   kwargs = get_kay_retriever_args
@@ -457,6 +485,7 @@ def test_invalid_dataset_id_for_custom_kay_retriever(get_kay_retriever_args):
 
   assert 'Invalid dataset_id' in str(ex.value)
 
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize('query', ['valid', 'is-success'])
 def test_check_call_kay_of_custom_kay_retriever(mock_post_request_of_kay_retriever, get_kay_retriever_args, query):
@@ -467,6 +496,7 @@ def test_check_call_kay_of_custom_kay_retriever(mock_post_request_of_kay_retriev
 
   assert response['success'] == True
 
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize('query,raise_class,err', [
   ('is-not-success', _customRetriever.ServerError, 'Server error: Not success'),
@@ -484,6 +514,7 @@ def test_invalid_call_kay_response_of_custom_kay_retriever(mock_post_request_of_
 
   assert err in str(ex.value)
 
+@pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize([
   'prompt',
@@ -526,6 +557,7 @@ def test_check_call_kay_args_from_query_method_of_custom_kay_retriever(
   assert contexts['dataset_config'] == expected_dataset_config
   assert contexts['retrieval_config'] == expected_retrieval_config
 
+@pytest.mark.chatbot
 @pytest.mark.private
 def test_check_query_is_success_of_custom_kay_retriever(mock_call_kay_is_success):
   _, kwargs = mock_call_kay_is_success
@@ -536,6 +568,7 @@ def test_check_query_is_success_of_custom_kay_retriever(mock_call_kay_is_success
   except Exception:
     pytest.fail(f'Raise Exception when the function query is called')
 
+@pytest.mark.chatbot
 @pytest.mark.private
 def test_check_query_is_not_success_of_custom_kay_retriever(mock_call_kay_is_failed):
   _, kwargs = mock_call_kay_is_failed
@@ -546,6 +579,7 @@ def test_check_query_is_not_success_of_custom_kay_retriever(mock_call_kay_is_fai
 
   assert 'Unknown Error' in str(ex.value)
 
+@pytest.mark.chatbot
 @pytest.mark.private
 def test_check_custom_kayai_retriever(get_kay_retriever_args):
   kwargs = get_kay_retriever_args

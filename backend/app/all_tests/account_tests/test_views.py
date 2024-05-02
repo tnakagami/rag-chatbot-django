@@ -36,6 +36,7 @@ def init_records(django_db_blocker):
 
   return users
 
+@pytest.mark.account
 @pytest.mark.view
 def test_index_view_get_access(client):
   url = reverse('account:index')
@@ -43,6 +44,7 @@ def test_index_view_get_access(client):
 
   assert response.status_code == status.HTTP_200_OK
 
+@pytest.mark.account
 @pytest.mark.view
 def test_login_view_get_access(client):
   url = reverse('account:login')
@@ -50,6 +52,7 @@ def test_login_view_get_access(client):
 
   assert response.status_code == status.HTTP_200_OK
 
+@pytest.mark.account
 @pytest.mark.view
 @pytest.mark.django_db
 def test_login_view_post_access(init_records, client):
@@ -64,6 +67,7 @@ def test_login_view_post_access(init_records, client):
   assert response.status_code == status.HTTP_302_FOUND
   assert response['Location'] == reverse('account:index')
 
+@pytest.mark.account
 @pytest.mark.view
 @pytest.mark.django_db
 def test_with_authenticated_client_for_user_profile(init_records, client):
@@ -74,6 +78,7 @@ def test_with_authenticated_client_for_user_profile(init_records, client):
 
   assert response.status_code == status.HTTP_200_OK
 
+@pytest.mark.account
 @pytest.mark.view
 @pytest.mark.django_db
 def test_without_authentication_for_user_profile(init_records, client):
@@ -83,6 +88,7 @@ def test_without_authentication_for_user_profile(init_records, client):
 
   assert response.status_code == status.HTTP_403_FORBIDDEN
 
+@pytest.mark.account
 @pytest.mark.view
 @pytest.mark.django_db
 def test_invalid_user_profile_page(init_records, client):
@@ -94,6 +100,7 @@ def test_invalid_user_profile_page(init_records, client):
 
   assert response.status_code == status.HTTP_403_FORBIDDEN
 
+@pytest.mark.account
 @pytest.mark.view
 @pytest.mark.django_db
 def test_access_to_update_user_profile_page(init_records, client):
@@ -107,6 +114,7 @@ def test_access_to_update_user_profile_page(init_records, client):
 
   assert response.status_code == status.HTTP_200_OK
 
+@pytest.mark.account
 @pytest.mark.view
 @pytest.mark.django_db
 def test_update_user_profile(init_records, client):
@@ -124,6 +132,7 @@ def test_update_user_profile(init_records, client):
   assert response['Location'] == reverse('account:user_profile', kwargs={'pk': user.pk})
   assert modified_user.screen_name == new_name
 
+@pytest.mark.account
 @pytest.mark.view
 @pytest.mark.django_db
 def test_logout_page(init_records, client):

@@ -8,7 +8,7 @@ from langchain_community.tools.arxiv.tool import ArxivQueryRun, ArxivInput
 from langchain_community.utilities.arxiv import ArxivAPIWrapper
 from langchain_community.tools.connery import ConneryService
 from langchain_community.agent_toolkits.connery import ConneryToolkit
-from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
+from ._customRetriever import CustomDallEAPIWrapper
 from langchain_community.tools.ddg_search.tool import DuckDuckGoSearchRun, DDGInput
 from ._customRetriever import CustomKayAiRetriever
 from langchain_community.retrievers.pubmed import PubMedRetriever
@@ -31,9 +31,11 @@ class _ApiKeyConfig(_ToolConfig):
 class _ActionServerConfig(_ApiKeyConfig):
   url: str = ''
 
-class _DallEConfig(_ToolConfig):
+class _ConneryConfig(_ApiKeyConfig):
+  url: str = ''
+
+class _DallEConfig(_ApiKeyConfig):
   model: str = ''
-  api_key: str = ''
   endpoint: str = ''
   proxy: Optional[Union[Any, None]] = None
 
@@ -50,7 +52,7 @@ class _BaseTool(BaseModel):
     return self.config.dict() if self.config is not None else None
 
   def get_tools(self):
-    raise NotImplemented
+    raise NotImplementedError
 
 class RetrievalTool(_BaseTool):
   name: str = Field(gettext_lazy('Retrieval'), const=True)
@@ -97,10 +99,13 @@ class ConneryTool(_BaseTool):
 
   def __init__(self, config: Dict, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.config = _ApiKeyConfig(**config)
+    self.config = _ConneryConfig(**config)
 
   def get_tools(self):
-    service = ConneryService(api_key=str(self.config.api_key))
+    service = ConneryService(
+      api_key=str(self.config.api_key),
+      runner_url=str(self.config.url),
+    )
     toolkit = ConneryToolkit.create_instance(service)
     tools = toolkit.get_tools()
 
@@ -115,8 +120,9 @@ class DallETool(_BaseTool):
     self.config = _DallEConfig(**config)
 
   def get_tools(self):
-    wrapper = DallEAPIWrapper(
+    wrapper = CustomDallEAPIWrapper(
       http_client=get_client(self.config.proxy, is_async=False),
+      http_async_client=get_client(self.config.proxy, is_async=True),
       model=str(self.config.model),
       api_key=str(self.config.api_key),
       base_url=str(self.config.endpoint),

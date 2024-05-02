@@ -164,6 +164,9 @@ class ToolType(models.IntegerChoices):
   YOU_SEARCH         = 12, gettext_lazy('You Search')
   WIKIPEDIA          = 13, gettext_lazy('Wikipedia')
 
+  def __str__(self):
+    return f'{self.label}'
+
   @property
   def _tool_type(self):
     # Patterns of tool

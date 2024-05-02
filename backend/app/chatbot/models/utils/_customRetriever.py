@@ -1,7 +1,37 @@
 import os
 import requests
-from typing import List
+import openai
+from typing import List, Dict, Union, Any
+from langchain_core.pydantic_v1 import root_validator
+from langchain_community.utils.openai import is_openai_v1
+from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
 from langchain_community.retrievers.kay import KayAiRetriever
+
+class CustomDallEAPIWrapper(DallEAPIWrapper):
+  http_async_client: Union[Any, None] = None
+
+  @root_validator()
+  def validate_environment(cls, values: Dict) -> Dict:
+    _sync_client = values.pop('http_client', None)
+    async_client = values.pop('http_async_client', None)
+    # Set None to `http_client` variable to create default client and async_client
+    values['http_client'] = None
+    _values = super().validate_environment(values)
+
+    if is_openai_v1():
+      client_params = {
+        'api_key': _values['openai_api_key'],
+        'organization': _values['openai_organization'],
+        'base_url': _values['openai_api_base'],
+        'timeout': _values['request_timeout'],
+        'max_retries': _values['max_retries'],
+        'default_headers': _values['default_headers'],
+        'default_query': _values['default_query'],
+      }
+      _values['client'] = openai.OpenAI(**client_params, http_client=_sync_client).images
+      _values['async_client'] = openai.AsyncOpenAI(**client_params, http_client=async_client).images
+
+    return _values
 
 class InvalidInput(Exception):
     pass

@@ -52,6 +52,7 @@ class CustomFireworks(_BaseFireworks):
 
   def close(self):
     self._client_v1.close()
+    self._image_client_v1.close()
 
 class CustomAsyncFireworks(_BaseFireworks):
   async def __aenter__(self):

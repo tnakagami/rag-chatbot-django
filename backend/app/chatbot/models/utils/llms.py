@@ -26,7 +26,7 @@ class _BaseLLM:
   proxy: Union[Any, None] = None
 
   def get_llm(self, is_embedded=False):
-    raise NotImplemented
+    raise NotImplementedError
 
   def delete_keys(self, target: Dict, ignore_keys: List[str]):
     for key in ignore_keys:
@@ -97,7 +97,7 @@ class AzureOpenAILLM(_BaseLLM):
         api_key=self.api_key,
         azure_endpoint=self.endpoint,
         api_version=self.version,
-        deployment_name=self.deployment,
+        azure_deployment=self.deployment,
         max_retries=self.max_retries,
       )
     else:
@@ -108,7 +108,7 @@ class AzureOpenAILLM(_BaseLLM):
         api_key=self.api_key,
         azure_endpoint=self.endpoint,
         api_version=self.version,
-        deployment_name=self.deployment,
+        azure_deployment=self.deployment,
         temperature=self.temperature,
         max_retries=self.max_retries,
         streaming=self.stream,
@@ -260,20 +260,20 @@ class OllamaLLM(_BaseLLM):
     target = super().get_fields(self, is_embedded=False)
     target = self.delete_keys(target, ['max_retries', 'stream'])
 
-    return targets
+    return target
 
 @dataclass
 class GeminiLLM(_BaseLLM):
+  model: str = 'gemini'
   service_account: Mapping[str, str] = None
   location: str = 'us-central1'
 
   def get_llm(self, is_embedded=False):
-    if self.service_account is not None:
-      credentials = Credentials.from_service_account_info(self.service_account)
-      project = credentials.project
-    else:
-      credentials = None
-      project = None
+    if self.service_account is None:
+      raise ValueError(f'[{self.__class__.__name__}] service_account must be set. Please check your configure.')
+    # Collect credentials from service account information
+    credentials = Credentials.from_service_account_info(self.service_account)
+    project = credentials.project
 
     if is_embedded:
       llm = VertexAIEmbeddings(
@@ -281,15 +281,17 @@ class GeminiLLM(_BaseLLM):
         credentials=credentials,
         model_name=self.model,
         max_retries=self.max_retries,
+        location=self.location,
       )
     else:
       llm = ChatVertexAI(
         project=project,
         credentials=credentials,
-        model_name=self.model,
+        model=self.model,
         temperature=self.temperature,
         max_retries=self.max_retries,
         streaming=self.stream,
+        location=self.location,
       )
 
     return llm
