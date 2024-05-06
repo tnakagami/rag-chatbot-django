@@ -36,6 +36,7 @@ psycopg = "^3.1.18"
 django-asgi-lifespan = "^0.3.1"
 django-view-breadcrumbs = "^2.5.1"
 django-markdownx = "^4.0.7"
+django-picklefield = "^3.2.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.1.1"
@@ -69,7 +70,8 @@ markers = [
   "view: marks tests as View",
   "drf: marks tests as Django REST framework",
   "private: marks tests as Private class/method/function",
-  "util: marks tests as Utility class/method/function"
+  "util: marks tests as Utility class/method/function",
+  "langgraph: marks tests as LangGraph related classes",
 ]
 cache_dir = "/opt/home/.cache"
 filterwarnings = [

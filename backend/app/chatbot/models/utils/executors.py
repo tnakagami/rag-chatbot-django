@@ -1,15 +1,14 @@
 from typing import Any, List, cast, Sequence
 from langchain.tools import BaseTool
 from langchain.tools.render import render_text_description
-from langchain_core.language_models.base import LanguageModelLike
-from langchain_core.messages import (
+from langchain.schema.language_model import BaseLanguageModel
+from langchain.schema.messages import (
   AnyMessage,
   AIMessage,
   FunctionMessage,
   HumanMessage,
   SystemMessage,
   ToolMessage,
-  MessageLikeRepresentation,
 )
 from langgraph.checkpoint import BaseCheckpointSaver
 from langgraph.graph import END
@@ -76,7 +75,7 @@ class _BaseExecutor:
     return app
 
 class ToolExecutor(_BaseExecutor):
-  def __init__(self, llm: LanguageModelLike, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver):
+  def __init__(self, llm: BaseLanguageModel, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver):
     super().__init__(tools, is_interrupt, checkpoint)
 
     if tools:
@@ -125,7 +124,7 @@ class ToolExecutor(_BaseExecutor):
     return tool_messages
 
 class XmlExecutor(_BaseExecutor):
-  def __init__(self, llm: LanguageModelLike, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver):
+  def __init__(self, llm: BaseLanguageModel, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver):
     super().__init__(tools, is_interrupt, checkpoint)
     self.llm = llm.bind(stop=['</tool_input>', '<observation>']) if tools else llm
     self.template = '\n'.join([

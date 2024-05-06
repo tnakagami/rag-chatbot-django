@@ -176,6 +176,17 @@ def test_check_valid_client(
   ('', True),
   (None, False),
   (None, True),
+], ids=[
+  'no-scheme-sync',
+  'no-scheme-async',
+  'no-hostname-sync',
+  'no-hostname-async',
+  'no-domain-sync',
+  'no-domain-async',
+  'empty-proxy-sync',
+  'empty-proxy-async',
+  'none-proxy-sync',
+  'none-proxy-async',
 ])
 def test_check_invalid_client(proxy, is_async):
   instance = _client.get_client(proxy=proxy, is_async=is_async)

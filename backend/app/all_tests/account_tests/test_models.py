@@ -26,7 +26,7 @@ def test_user(user):
   ('hoge', 'hoge@example.com', 'hogehoge', 'hoge', 'hoge@example.com', 'hogehoge'), 
   ('1'*128, '{}@ok.com'.format('1'*121), '1'*128, '1'*128, '{}@ok.com'.format('1'*121), '1'*128),
   ('foo', 'foo@ok.com', '', 'foo', 'foo@ok.com', ''), 
-])
+], ids=['valid', 'max-length', 'include-empty-data'])
 def test_user_creation(user, expected_name, expected_email, expected_screen):
   assert user.username == expected_name
   assert user.email == expected_email
@@ -146,7 +146,7 @@ def test_invalid_same_email():
   ('1'*32, '', '1'*32,),
   ('1'*32, '2'*33, '{}...'.format('2'*32)), 
   ('1'*33, '', '{}...'.format('1'*32)), 
-])
+], ids=['length-eq-32', 'screen-name-is-empty', 'screen-name-length-is-33', 'username-length-is-33'])
 def test_user_shortname(user, expected):
   assert user.get_short_name() == expected
 
@@ -160,6 +160,13 @@ def test_user_shortname(user, expected):
   ('1'*33, '', '1'*33),
   ('1'*128, '2'*128, '2'*128),
   ('1'*128, '', '1'*128),
+], ids=[
+  'length-eq-32',
+  'usename-length-eq-32-screen-name-is-empty',
+  'length-eq-33',
+  'username-length-eq-33-screen-name-is-empty',
+  'length-eq-128',
+  'username-length-eq-128-screen-name-is-empty',
 ])
 def test_user_fullname(user, expected):
   assert user.get_full_name() == expected

@@ -2,10 +2,11 @@ import os
 import requests
 import openai
 from typing import List, Dict, Union, Any
-from langchain_core.pydantic_v1 import root_validator
+from langchain.pydantic_v1 import root_validator, Field
 from langchain_community.utils.openai import is_openai_v1
 from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
 from langchain_community.retrievers.kay import KayAiRetriever
+from langchain.callbacks.manager import AsyncCallbackManagerForRetrieverRun, CallbackManagerForRetrieverRun
 
 class CustomDallEAPIWrapper(DallEAPIWrapper):
   http_async_client: Union[Any, None] = None
@@ -123,4 +124,3 @@ class CustomKayAiRetriever(KayAiRetriever):
     )
 
     return cls(client=client, num_contexts=num_contexts)
-  

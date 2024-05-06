@@ -1,7 +1,7 @@
 import pytest
 from chatbot.models.utils import tools
 # Classes for comparing instance
-from langchain_core.tools import Tool
+from langchain.tools import Tool
 from langchain_community.tools.arxiv.tool import ArxivQueryRun
 from langchain_community.tools.ddg_search.tool import DuckDuckGoSearchRun
 from langchain_community.tools.tavily_search import (
@@ -152,17 +152,33 @@ def test_check_basetool_with_config(get_dall_e_with_proxy):
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_retrieval_tool(get_target_tool):
+  from chatbot.models.rag import Embedding, EmbeddingStore
+  from chatbot.models.utils import OpenAILLM
+  embedding = Embedding.DistanceType(Embedding.DistanceType.COSINE)
+  instance = OpenAILLM(**{
+    'model': 'sample',
+    'api_key': 'open-ai-key',
+    'endpoint': 'http://dummy-open-ai/endpoint'
+  })
+
+  kwargs = {
+    'assistant_id': 1,
+    'manager': EmbeddingStore.objects,
+    'strategy': embedding._strategy,
+    'embeddings': instance.get_llm(is_embedded=True),
+    'search_kwargs': {
+      'k': 6,
+    }
+  }
   getter = get_target_tool
-  instance = tools.RetrievalTool()
+  instance = tools.RetrievalTool(kwargs)
   config = instance.get_config_fields()
-  callback = getter(instance)
-  target = callback(None)
+  target = getter(instance)
 
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config is None
-  assert callable(callback)
+  assert config == kwargs['search_kwargs']
   assert isinstance(target, Tool)
 
 # ====================

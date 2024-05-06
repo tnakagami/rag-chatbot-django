@@ -1,9 +1,12 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Dict, Tuple, List, Union, Any
 from functools import wraps
 from django.db import models
 from django.utils.translation import gettext_lazy
 from django.core.exceptions import ValidationError
+from django.db.models import Manager as DjangoManager
+from langchain.schema.embeddings import Embeddings
+from langgraph.checkpoint import BaseCheckpointSaver
 from .utils import (
   OpenAILLM,
   AzureOpenAILLM,
@@ -33,15 +36,15 @@ from .utils import (
 @dataclass
 class AgentArgs:
   tools: List[BaseTool]
-  checkpoint: Any
-  system_message: str = str(gettext_lazy('You are a helpful assistant.'))
+  checkpoint: BaseCheckpointSaver
+  system_message: str = ''
   is_interrupt: bool = False
 
 @dataclass
 class ToolArgs:
-  assistant_id: str
-  thread_id: str
-  vector_store: Any
+  assistant_id: int
+  manager: DjangoManager
+  embedding: Any
 
 class AgentType(models.IntegerChoices):
   OPENAI    = 1, gettext_lazy('Open AI')
@@ -208,13 +211,18 @@ class ToolType(models.IntegerChoices):
     args: ToolArgs,
   ):
     _self = cls(tool_id)
-    instance = _self._tool_type(config)
 
     if _self == ToolType.RETRIEVER:
-      callback = instance.get_tools()
-      retriever = None
-      tools = callback(retriever)
+      retriever_config = {
+        'assistant_id': args.assistant_id,
+        'manager': args.manager,
+        'strategy': args.embedding.get_distance_strategy(),
+        'embeddings': args.embedding.get_embedding(),
+        'search_kwargs': config,
+      }
+      instance = _self._tool_type(retriever_config)
     else:
-      tools = instance.get_tools()
+      instance = _self._tool_type(config)
+    tools = instance.get_tools()
 
     return tools

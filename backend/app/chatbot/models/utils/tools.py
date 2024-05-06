@@ -1,8 +1,9 @@
 from typing import Optional, Dict, Union, Any
-from typing_extensions import TypedDict
+from dataclasses import dataclass
 from langchain.pydantic_v1 import BaseModel, Field
 from langchain.tools.retriever import create_retriever_tool
-from langchain_core.tools import Tool
+from langchain.tools import Tool
+from langchain.schema.embeddings import Embeddings
 from langchain_robocorp import ActionServerToolkit
 from langchain_community.tools.arxiv.tool import ArxivQueryRun, ArxivInput
 from langchain_community.utilities.arxiv import ArxivAPIWrapper
@@ -19,8 +20,19 @@ from langchain_community.tools.tavily_search import (
 from langchain_community.utilities.tavily_search import TavilySearchAPIWrapper
 from langchain_community.retrievers.you import YouRetriever
 from langchain_community.retrievers.wikipedia import WikipediaRetriever
+# For Django
 from django.utils.translation import gettext_lazy
+from django.db.models import Manager as DjangoManager
 from ._client import get_client
+from .vectorstore import CustomVectorStore, DistanceStrategy
+
+@dataclass
+class _RetrievalConfig:
+  assistant_id: int
+  manager: DjangoManager
+  strategy: DistanceStrategy
+  embeddings: Embeddings
+  search_kwargs: Dict[str, Any]
 
 class _ToolConfig(BaseModel):
   Ellipsis
@@ -58,15 +70,33 @@ class RetrievalTool(_BaseTool):
   name: str = Field(gettext_lazy('Retrieval'), const=True)
   description: str = Field(gettext_lazy('Look up information in uploaded files.'), const=True)
 
-  def get_tools(self):
-    def callback(retriever):
-      return create_retriever_tool(
-        retriever=retriever,
-        name=str(self.name),
-        description=str(self.description)
-      )
+  def __init__(self, config: Dict, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.config = _RetrievalConfig(**config)
 
-    return callback
+  def get_config_fields(self):
+    config = {key: val for key, val in self.config.search_kwargs.items()}
+
+    return config
+
+  def get_tools(self):
+    kwargs = {key: val for key, val in self.config.search_kwargs.items()}
+    kwargs.update({'assistant_id': self.config.assistant_id})
+    vectorstore = CustomVectorStore(
+      manager=self.config.manager,
+      strategy=self.config.strategy,
+      embedding_function=self.config.embeddings,
+    )
+    tool = create_retriever_tool(
+      retriever=vectorstore.as_retriever(
+        search_type='similarity',
+        search_kwargs=kwargs,
+      ),
+      name=str(self.name),
+      description=str(self.description)
+    )
+
+    return tool
 
 class ActionServerTool(_BaseTool):
   name: str = Field(gettext_lazy('Action Server by Robocorp'), const=True)

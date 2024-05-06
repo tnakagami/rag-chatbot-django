@@ -5,8 +5,8 @@ from asgiref.sync import async_to_sync
 from chatbot.models.utils import ArxivTool, WikipediaTool, FireworksLLM, OllamaLLM
 from langgraph.checkpoint import BaseCheckpointSaver, CheckpointAt
 from langgraph.prebuilt import ToolExecutor as LangGraphToolExecutor
-from langchain_core.runnables import Runnable
-from langchain_core.messages import (
+from langchain.schema.runnable import Runnable
+from langchain.schema.messages import (
   AIMessage,
   FunctionMessage,
   HumanMessage,

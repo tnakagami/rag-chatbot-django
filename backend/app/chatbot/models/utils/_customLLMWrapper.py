@@ -1,5 +1,5 @@
 from typing import Dict, Optional, Union, Any
-from langchain_core.pydantic_v1 import root_validator
+from langchain.pydantic_v1 import root_validator
 # For anthropic
 import anthropic
 from langchain_anthropic import ChatAnthropic
