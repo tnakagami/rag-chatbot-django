@@ -50,6 +50,7 @@ services:
       args:
         # architecture: amd64, arm32v5, arm64v8, i386, and so on.
         - ARCHITECTURE=arm64v8
+        - PGVECTOR_VERSION=0.7.0
     image: rag-database
     container_name: rag-database
     env_file:
@@ -57,6 +58,7 @@ services:
     networks:
       - rag-app
     volumes:
+      - ./database/initdb.d:/docker-entrypoint-initdb.d:ro
       - database:/var/lib/postgresql/data
     expose:
       - 5432

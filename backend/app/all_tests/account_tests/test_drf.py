@@ -22,6 +22,7 @@ def init_records(django_db_blocker):
 
   return info
 
+@pytest.mark.account
 @pytest.mark.drf
 @pytest.mark.django_db
 def test_can_authorize_by_using_jwt(init_records):
@@ -40,6 +41,7 @@ def test_can_authorize_by_using_jwt(init_records):
   assert bool(response.data)
   assert 'access' in response.data.keys()
 
+@pytest.mark.account
 @pytest.mark.drf
 @pytest.mark.django_db
 def test_can_refresh_jwt_token(init_records):
@@ -58,6 +60,7 @@ def test_can_refresh_jwt_token(init_records):
   assert bool(response.data)
   assert 'access' in response.data.keys()
 
+@pytest.mark.account
 @pytest.mark.drf
 @pytest.mark.django_db
 def test_verify_jwt_token(init_records):
@@ -75,6 +78,7 @@ def test_verify_jwt_token(init_records):
   response = view(request)
   assert response.status_code == status.HTTP_200_OK
 
+@pytest.mark.account
 @pytest.mark.drf
 @pytest.mark.django_db
 def test_invalid_jwt_token(init_records):
@@ -105,6 +109,7 @@ def drf_user_profile_settings():
 
   return callback
 
+@pytest.mark.account
 @pytest.mark.drf
 def test_drf_user_profile_is_not_authenticated(drf_user_profile_settings):
   callback = drf_user_profile_settings
@@ -112,6 +117,7 @@ def test_drf_user_profile_is_not_authenticated(drf_user_profile_settings):
 
   assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+@pytest.mark.account
 @pytest.mark.drf
 @pytest.mark.django_db
 def test_drf_user_profile_getmethod(init_records, drf_user_profile_settings):
@@ -127,6 +133,7 @@ def test_drf_user_profile_getmethod(init_records, drf_user_profile_settings):
   assert target in response.data.keys()
   assert response.data[target] == screen_name
 
+@pytest.mark.account
 @pytest.mark.drf
 @pytest.mark.django_db
 def test_drf_user_profile_patchmethod(init_records, drf_user_profile_settings):
