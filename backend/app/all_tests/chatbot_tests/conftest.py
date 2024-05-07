@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 @pytest.fixture
 def client_non_proxy_checker():
@@ -51,5 +52,12 @@ def check_embedding_fields():
       embedinng_fields['max_retries'] == expected['max_retries'],
       embedinng_fields['proxy'] == expected['proxy'] if use_proxy else embedinng_fields['proxy'] is None,
     ])
+
+  return inner
+
+@pytest.fixture
+def get_normalizer():
+  def inner(arr, axis=0):
+    return arr / np.linalg.norm(arr, axis=axis)
 
   return inner

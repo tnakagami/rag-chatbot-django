@@ -388,9 +388,6 @@ async def test_check_aput_method(get_checkpoint_instance, create_checkpoints_of_
 # =============================
 # = Test of CustomVectorStore =
 # =============================
-def _normalizer(arr):
-  return arr / np.linalg.norm(arr)
-
 @pytest.fixture
 def get_vectorstore_instance():
   class DummyEmbedding:
@@ -420,8 +417,9 @@ def get_instance_with_data(get_vectorstore_instance):
   return instance, texts, embds
 
 @pytest.fixture
-def get_vectors():
-  base_vector = _normalizer(np.linspace(0.1, 2.1, 10))
+def get_vectors(get_normalizer):
+  normalizer = get_normalizer
+  base_vector = normalizer(np.linspace(0.1, 2.1, 10))
   scales = np.array([-2.01, 1.88, 0.99, 2.3, -1.7, 0.001])
   nearest_neighbor = np.abs(scales - 1).argsort()[0]
 
@@ -429,14 +427,15 @@ def get_vectors():
 
 @pytest.fixture
 @pytest.mark.django_db
-def create_embeddingstores(django_db_blocker, get_vectors, get_vectorstore_instance):
+def create_embeddingstores(django_db_blocker, get_vectors, get_normalizer, get_vectorstore_instance):
+  normalizer = get_normalizer
   nearest_embedding, scales, nearest_neighbor = get_vectors
   instance = get_vectorstore_instance
   instance.embeddings.emb_query = nearest_embedding
   instance.embeddings.nearest_neighbor = nearest_neighbor
 
   ndim = nearest_embedding.shape[0]
-  embeddings = [_normalizer(np.power(nearest_embedding, scale)) for scale in scales]
+  embeddings = [normalizer(np.power(nearest_embedding, scale)) for scale in scales]
   records = []
 
   with django_db_blocker.unblock():
@@ -534,6 +533,16 @@ def test_check_delete_method_of_vectorstore_when_invalid_ids_are_included(create
 def test_check_delete_method_of_vectorstore_when_ids_is_empty(create_embeddingstores):
   instance, records = create_embeddingstores
   result = instance.delete([])
+
+  assert not result
+  assert instance.manager.all().count() == len(records)
+
+@pytest.mark.chatbot
+@pytest.mark.langgraph
+@pytest.mark.django_db
+def test_check_delete_method_of_vectorstore_when_ids_is_none(create_embeddingstores):
+  instance, records = create_embeddingstores
+  result = instance.delete(None)
 
   assert not result
   assert instance.manager.all().count() == len(records)

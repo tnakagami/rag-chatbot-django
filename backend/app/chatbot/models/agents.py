@@ -99,13 +99,14 @@ class AgentType(models.IntegerChoices):
 
   @classmethod
   def get_embedding_validator(cls):
-    invalids = cls.get_embedding_choices()
+    valids = [value for value, _ in cls.get_embedding_choices()]
+    invalids = [(value, label) for value, label in cls.choices if value not in valids]
 
     @wraps(cls.get_embedding_validator)
     def validator(value):
-      matched = [(item, label) for item, label in invalids if item != value]
+      matched = [(item, label) for item, label in invalids if item == value]
 
-      if matched:
+      if len(matched) > 0:
         _, label = matched[0]
 
         raise ValidationError(

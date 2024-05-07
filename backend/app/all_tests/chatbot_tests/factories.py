@@ -107,6 +107,13 @@ class EmbeddingStoreFactory(factory.django.DjangoModelFactory):
   embedding = _FuzzyVectore(ndim=Params.ndim)
   document = FuzzyText(length=64)
 
+  @classmethod
+  def _create(cls, model_class, *args, **kwargs):
+    manager = cls._get_manager(model_class)
+    assistant = kwargs.pop('assistant')
+
+    return manager.create(assistant.pk, *args, **kwargs)
+
 class CheckpointFactory(factory.django.DjangoModelFactory):
   class Meta:
     model = LangGraphCheckpoint

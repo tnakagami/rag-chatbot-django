@@ -13,7 +13,7 @@ User = get_user_model()
 class BaseManager(models.Manager):
   def get_or_none(self, **kwargs):
     try:
-      return self.get_queryet().get(**kwargs)
+      return self.get_queryset().get(**kwargs)
     except self.model.DoesNotExist:
       return None
 
@@ -47,7 +47,7 @@ class Agent(BaseConfig):
   )
 
   def __str__(self):
-    return f'{self.name} ({self.chatbot})'
+    return f'{self.name} ({self.agent_type})'
 
   def get_executor(self, args: AgentArgs):
     return AgentType.get_executor(self.agent_type, self.config, args)
@@ -97,7 +97,7 @@ class Embedding(BaseConfig):
     return embedding
 
   def get_distance_strategy(self):
-    return DistanceType(self.distance_strategy)._strategy
+    return Embedding.DistanceType(self.distance_strategy)._strategy
 
 class Tool(BaseConfig):
   user = models.ForeignKey(
@@ -114,7 +114,7 @@ class Tool(BaseConfig):
   )
 
   def __str__(self):
-    return f'{self.name} ({self.tool})'
+    return f'{self.name} ({self.tool_type})'
 
   def get_tool(self, args: ToolArgs):
     return ToolType.get_tool(self.tool_type, self.config, args)
@@ -177,7 +177,7 @@ class Assistant(models.Model):
       _target_tools = target.get_tool(tool_args)
 
       if isinstance(_target_tools, list):
-        tools.expand(_target_tools)
+        tools.extend(_target_tools)
       else:
         tools.append(_target_tools)
     # Get the executor
@@ -206,6 +206,9 @@ class Thread(models.Model):
   )
 
   objects = BaseManager()
+
+  def __str__(self):
+    return f'{self.name} ({self.assistant})'
 
 class EmbeddingStoreQuerySet(models.QuerySet):
   def similarity_search_with_distance_by_vector(self, embedded_query, assistant_id, distance_strategy):
@@ -253,13 +256,12 @@ class EmbeddingStore(models.Model):
 
   def __str__(self):
     username = self.assistant.user.get_short_name()
-    assistant_name = str(self.assistant)
 
-    return f'{assistant_name}({username})'
+    return f'{self.assistant} ({username})'
 
 class LangGraphCheckpointQuerySet(models.QuerySet):
   def collect_checkpoints(self, thread_id, thread_ts=None):
-    if thread_ts:
+    if thread_ts is not None:
       queryset = self.filter(thread__pk=thread_id, current_time=thread_ts)
     else:
       queryset = self.filter(thread__pk=thread_id)
@@ -267,10 +269,29 @@ class LangGraphCheckpointQuerySet(models.QuerySet):
     return queryset.order_by('-current_time')
 
 class LangGraphCheckpointManager(BaseManager, models.Manager.from_queryset(LangGraphCheckpointQuerySet)):
-  def update_or_create(self, thread_id, *args, **kwargs):
-    thread = Thread.objects.get(pk=thread_id)
+  def update_or_create(self, thread_id, current_time, *args, **kwargs):
+    instance = self.get_or_none(thread__pk=thread_id, current_time=current_time)
+    # In the caes of inserting the new checkpoint
+    if instance is None:
+      thread = Thread.objects.get_or_none(pk=thread_id)
 
-    return super().update_or_create(thread=thread, *args, **kwargs)
+      if thread is not None:
+        instance = self.create(thread=thread, current_time=current_time, *args, **kwargs)
+        created = True
+      else:
+        instance, created = None, False
+    # In the caes of updating the checkpoint
+    else:
+      checkpoint = kwargs.get('checkpoint', None)
+      created = False
+
+      if checkpoint is not None:
+        instance.checkpoint = checkpoint
+        instance.save(update_fields=['checkpoint'])
+      else:
+        instance = None
+
+    return instance, created
 
 class LangGraphCheckpoint(models.Model):
   thread = models.ForeignKey(

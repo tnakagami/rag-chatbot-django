@@ -35,7 +35,7 @@ class CustomVectorStore(VectorStore):
     return self.embedding_function
 
   def delete(self, ids: Optional[List[str]] = None, **kwargs: Any) -> Optional[bool]:
-    if ids:
+    if ids is not None and len(ids) > 0:
       valid_ids = []
 
       for idx in ids:
