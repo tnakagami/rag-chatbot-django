@@ -1,0 +1,7 @@
+{% extends 'chatbot/base_setting_form.html' %}
+{% load i18n %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("Chatbot - Create/Update agent") %}
+{{ block.super }}
+{% endblock %}

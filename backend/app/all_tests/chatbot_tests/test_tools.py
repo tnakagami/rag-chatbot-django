@@ -132,7 +132,8 @@ def test_check_basetool_without_config():
 
   with pytest.raises(NotImplementedError):
     instance.get_tools()
-  assert config is None
+  assert isinstance(config, list)
+  assert len(config) == 0
   assert not str(instance.name)
   assert not str(instance.description)
   assert not instance.multi_use
@@ -144,14 +145,19 @@ def test_check_basetool_with_config(get_dall_e_with_proxy):
   instance = tools._BaseTool(config=kwargs)
   config = instance.get_config_fields()
 
-  assert config is None
+  assert isinstance(config, list)
+  assert len(config) == 0
 
 # =================
 # = RetrievalTool =
 # =================
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_retrieval_tool(get_target_tool):
+@pytest.mark.parametrize('search_kwargs,expected_kw', [
+  ({},{'k': {'data': 4, 'label': 'Number of output documents', 'type': int}}),
+  ({'k': 3},{'k': {'data': 3, 'label': 'Number of output documents', 'type': int}}),
+], ids=['default-keyword', 'specific-keyword'])
+def test_check_retrieval_tool(get_target_tool, search_kwargs, expected_kw):
   from chatbot.models.rag import Embedding, EmbeddingStore
   from chatbot.models.utils import OpenAILLM
   embedding = Embedding.DistanceType(Embedding.DistanceType.COSINE)
@@ -166,9 +172,7 @@ def test_check_retrieval_tool(get_target_tool):
     'manager': EmbeddingStore.objects,
     'strategy': embedding._strategy,
     'embeddings': instance.get_llm(is_embedded=True),
-    'search_kwargs': {
-      'k': 6,
-    }
+    'search_kwargs': search_kwargs
   }
   getter = get_target_tool
   instance = tools.RetrievalTool(kwargs)
@@ -178,7 +182,15 @@ def test_check_retrieval_tool(get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config == kwargs['search_kwargs']
+  assert all([
+    all([
+      _field.name in expected_kw.keys(),
+      _field.data == expected_kw[_field.name]['data'],
+      expected_kw[_field.name]['label'] in _field.label,
+      _field._judge(expected_kw[_field.name]['type']),
+    ])
+    for _field in config
+  ])
   assert isinstance(target, Tool)
 
 # ====================
@@ -186,10 +198,11 @@ def test_check_retrieval_tool(get_target_tool):
 # ====================
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_action_server_tool(get_apikey_and_url, get_target_tool, mocker):
+def test_check_action_server_tool(get_apikey_and_url, get_target_tool, check_fields, mocker):
   mocker.patch('chatbot.models.utils.tools.ActionServerToolkit', new=DummyToolkit)
   kwargs = get_apikey_and_url
   getter = get_target_tool
+  field_checker = check_fields
   instance = tools.ActionServerTool(kwargs)
   config = instance.get_config_fields()
   _ = getter(instance)
@@ -197,7 +210,7 @@ def test_check_action_server_tool(get_apikey_and_url, get_target_tool, mocker):
   assert str(instance.name)
   assert str(instance.description)
   assert instance.multi_use
-  assert config == kwargs
+  assert field_checker(config, kwargs)
 
 # =============
 # = ArxivTool =
@@ -213,7 +226,8 @@ def test_check_arxiv_tool(get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config is None
+  assert isinstance(config, list)
+  assert len(config) == 0
   assert isinstance(target, ArxivQueryRun)
 
 # ===============
@@ -221,10 +235,11 @@ def test_check_arxiv_tool(get_target_tool):
 # ===============
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_connery_tool(get_apikey_and_url, get_target_tool, mocker):
+def test_check_connery_tool(get_apikey_and_url, get_target_tool, check_fields, mocker):
   mocker.patch('chatbot.models.utils.tools.ConneryToolkit', new=DummyToolkit)
   kwargs = get_apikey_and_url
   getter = get_target_tool
+  field_checker = check_fields
   instance = tools.ConneryTool(kwargs)
   config = instance.get_config_fields()
   _ = getter(instance)
@@ -232,16 +247,17 @@ def test_check_connery_tool(get_apikey_and_url, get_target_tool, mocker):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config == kwargs
+  assert field_checker(config, kwargs)
 
 # =============
 # = DallETool =
 # =============
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_dalle_tool(get_dall_e_with_proxy, get_target_tool):
+def test_check_dalle_tool(get_dall_e_with_proxy, get_target_tool, check_fields):
   kwargs = get_dall_e_with_proxy
   getter = get_target_tool
+  field_checker = check_fields
   instance = tools.DallETool(kwargs)
   config = instance.get_config_fields()
   target = getter(instance)
@@ -249,7 +265,7 @@ def test_check_dalle_tool(get_dall_e_with_proxy, get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config == kwargs
+  assert field_checker(config, kwargs)
   assert isinstance(target, Tool)
 
 # =================
@@ -266,7 +282,8 @@ def test_check_ddg_search_tool(get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config is None
+  assert isinstance(config, list)
+  assert len(config) == 0
   assert isinstance(target, DuckDuckGoSearchRun)
 
 # ==================
@@ -274,9 +291,10 @@ def test_check_ddg_search_tool(get_target_tool):
 # ==================
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_sec_filings_tool(get_api_key, get_target_tool):
+def test_check_sec_filings_tool(get_api_key, get_target_tool, check_fields):
   kwargs = get_api_key
   getter = get_target_tool
+  field_checker = check_fields
   instance = tools.SecFilingsTool(kwargs)
   config = instance.get_config_fields()
   target = getter(instance)
@@ -284,7 +302,7 @@ def test_check_sec_filings_tool(get_api_key, get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config == kwargs
+  assert field_checker(config, kwargs)
   assert isinstance(target, Tool)
 
 # =====================
@@ -292,9 +310,10 @@ def test_check_sec_filings_tool(get_api_key, get_target_tool):
 # =====================
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_press_release_tool(get_api_key, get_target_tool):
+def test_check_press_release_tool(get_api_key, get_target_tool, check_fields):
   kwargs = get_api_key
   getter = get_target_tool
+  field_checker = check_fields
   instance = tools.PressReleasesTool(kwargs)
   config = instance.get_config_fields()
   target = getter(instance)
@@ -302,7 +321,7 @@ def test_check_press_release_tool(get_api_key, get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config == kwargs
+  assert field_checker(config, kwargs)
   assert isinstance(target, Tool)
 
 # ==============
@@ -319,7 +338,8 @@ def test_check_pubmed_tool(get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config is None
+  assert isinstance(config, list)
+  assert len(config) == 0
   assert isinstance(target, Tool)
 
 # ====================
@@ -327,9 +347,10 @@ def test_check_pubmed_tool(get_target_tool):
 # ====================
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_tavily_search_tool(get_api_key, get_target_tool):
+def test_check_tavily_search_tool(get_api_key, get_target_tool, check_fields):
   kwargs = get_api_key
   getter = get_target_tool
+  field_checker = check_fields
   instance = tools.TavilySearchTool(kwargs)
   config = instance.get_config_fields()
   target = getter(instance)
@@ -337,7 +358,7 @@ def test_check_tavily_search_tool(get_api_key, get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config == kwargs
+  assert field_checker(config, kwargs)
   assert isinstance(target, TavilySearchResults)
 
 # ====================
@@ -345,9 +366,10 @@ def test_check_tavily_search_tool(get_api_key, get_target_tool):
 # ====================
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_tavily_answer_tool(get_api_key, get_target_tool):
+def test_check_tavily_answer_tool(get_api_key, get_target_tool, check_fields):
   kwargs = get_api_key
   getter = get_target_tool
+  field_checker = check_fields
   instance = tools.TavilyAnswerTool(kwargs)
   config = instance.get_config_fields()
   target = getter(instance)
@@ -355,7 +377,7 @@ def test_check_tavily_answer_tool(get_api_key, get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config == kwargs
+  assert field_checker(config, kwargs)
   assert isinstance(target, _TavilyAnswer)
 
 # =================
@@ -363,9 +385,10 @@ def test_check_tavily_answer_tool(get_api_key, get_target_tool):
 # =================
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_you_search_tool(get_api_key, get_target_tool):
+def test_check_you_search_tool(get_api_key, get_target_tool, check_fields):
   kwargs = get_api_key
   getter = get_target_tool
+  field_checker = check_fields
   instance = tools.YouSearchTool(kwargs)
   config = instance.get_config_fields()
   target = getter(instance)
@@ -373,7 +396,7 @@ def test_check_you_search_tool(get_api_key, get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config == kwargs
+  assert field_checker(config, kwargs)
   assert isinstance(target, Tool)
 
 # =================
@@ -390,5 +413,6 @@ def test_check_wikipedia_tool(get_target_tool):
   assert str(instance.name)
   assert str(instance.description)
   assert not instance.multi_use
-  assert config is None
+  assert isinstance(config, list)
+  assert len(config) == 0
   assert isinstance(target, Tool)

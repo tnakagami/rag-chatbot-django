@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/v1/', include(('config.drf_urls', 'api'))),
 ] + i18n_patterns(
     path('', include(('account.urls', 'account'))),
+    path('chatbot/', include(('chatbot.urls', 'chatbot'))),
 )
 
 if settings.DEBUG:

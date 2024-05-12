@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("Chatbot - Create document file") %}
+<div class="row justify-content-center">
+  <div class="col">
+    {# Set enctype as `multipart/form-data` to send the files #}
+    <form method="POST" class="p-2" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      {% for field in form %}
+      <div class="row row-cols-1 my-2">
+        <div class="col">
+          <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+          {{ field }}
+        </div>
+        {% if field.errors %}
+        <div class="col text-danger fs-6">
+          {{ field.errors }}
+        </div>
+        {% endif %}
+        {% if field.help_text %}
+        <div class="col custom-helptext" {% if field.auto_id %} id="{{ field.auto_id }}_helptext"{% endif %}>
+          {{ field.help_text|safe }}
+        </div>
+        {% endif %}
+      </div>
+      {% if forloop.last %}
+      <div>{% for field in hidden_fields %}{{ field }}{% endfor %}</div>
+      {% endif %}
+      {% endfor %}
+      {% if not fields and not errors %}
+        {% for field in hidden_fields %}{{ field }}{% endfor %}
+      {% endif %}
+
+      <div class="mt-1 row row-cols-1 row-cols-md-2 g-2">
+        <div class="col">
+          <button type="submit" class="btn btn-primary w-100 custom-boxshadow-effect">
+            {% trans "Create" %}
+          </button>
+        </div>
+        <div class="col">
+          <a href="{% url 'chatbot:index' %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+            {% trans "Cancel" %}
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

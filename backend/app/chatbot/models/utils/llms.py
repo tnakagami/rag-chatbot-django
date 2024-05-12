@@ -1,7 +1,7 @@
 from typing import Dict, List, Union, Any, Mapping
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, field, fields
 from google.oauth2.service_account import Credentials
-from ._client import get_client
+from ._local import get_client, LocalField
 # Import langchain libraries of Chatbot
 import boto3
 from botocore.config import Config
@@ -16,39 +16,47 @@ from langchain_community.embeddings import BedrockEmbeddings
 from ._customLLMWrapper import CustomFireworksEmbeddings
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_google_vertexai import VertexAIEmbeddings
+# For Django
+from django.utils.translation import gettext_lazy
 
 @dataclass
 class _BaseLLM:
-  model: str = ''
-  temperature: int = 0
-  stream: bool = False
-  max_retries: int = 10
-  proxy: Union[Any, None] = None
+  model: str = field(default='', metadata={'type': str, 'label': gettext_lazy('model name')})
+  temperature: int = field(default=0, metadata={'type': int, 'label': gettext_lazy('temperature')})
+  stream: bool = field(default=False, metadata={'type': bool, 'label': gettext_lazy('enable streaming')})
+  max_retries: int = field(default=10, metadata={'type': int, 'label': gettext_lazy('max retries')})
+  proxy: Union[str, None] = field(default=None, metadata={'type': str, 'label': gettext_lazy('proxy url')})
 
-  def get_llm(self, is_embedded=False):
+  def get_llm(self, is_embedded: bool = False):
     raise NotImplementedError
 
-  def delete_keys(self, target: Dict, ignore_keys: List[str]):
-    for key in ignore_keys:
-      del target[key]
+  def delete_fields(self, targets: List[LocalField], ignores: List[str]) -> List[LocalField]:
+    return list(filter(lambda item: item.name not in ignores, targets))
 
-    return target
-
-  def get_fields(self, instance, is_embedded=False):
+  def get_fields(self, instance: object, is_embedded: bool = False) -> List[LocalField]:
     ignore_fields_for_embedding = ['temperature', 'stream']
-    target = asdict(instance)
+    targets = [
+      LocalField(
+        name=element.name,
+        value=getattr(instance, element.name, element.default),
+        default=element.default,
+        data_type=element.metadata['type'],
+        label=str(element.metadata['label']),
+      )
+      for element in fields(instance)
+    ]
 
     if is_embedded:
-      target = self.delete_keys(target, ignore_fields_for_embedding)
+      targets = self.delete_fields(targets, ignore_fields_for_embedding)
 
-    return target
+    return targets
 
 @dataclass
 class OpenAILLM(_BaseLLM):
-  api_key: str = ''
-  endpoint: str = ''
+  api_key: str = field(default='', metadata={'type': str, 'label': gettext_lazy('api key')})
+  endpoint: str = field(default='', metadata={'type': str, 'label': gettext_lazy('endpoint')})
 
-  def get_llm(self, is_embedded=False):
+  def get_llm(self, is_embedded: bool = False) -> Union[OpenAIEmbeddings, ChatOpenAI]:
     http_client = get_client(proxy=self.proxy, is_async=False)
     http_async_client = get_client(proxy=self.proxy, is_async=True)
 
@@ -75,17 +83,17 @@ class OpenAILLM(_BaseLLM):
 
     return llm
 
-  def get_fields(self, is_embedded=False):
+  def get_fields(self, is_embedded: bool = False) -> List[LocalField]:
     return super().get_fields(self, is_embedded=is_embedded)
 
 @dataclass
 class AzureOpenAILLM(_BaseLLM):
-  api_key: str = ''
-  endpoint: str = ''
-  version: str = ''
-  deployment: str = ''
+  api_key: str = field(default='', metadata={'type': str, 'label': gettext_lazy('api key')})
+  endpoint: str = field(default='', metadata={'type': str, 'label': gettext_lazy('endpoint')})
+  version: str = field(default='', metadata={'type': str, 'label': gettext_lazy('version')})
+  deployment: str = field(default='', metadata={'type': str, 'label': gettext_lazy('deployment')})
 
-  def get_llm(self, is_embedded=False):
+  def get_llm(self, is_embedded: bool = False) -> Union[AzureOpenAIEmbeddings, AzureChatOpenAI]:
     http_client = get_client(proxy=self.proxy, is_async=False)
     http_async_client = get_client(proxy=self.proxy, is_async=True)
 
@@ -116,15 +124,15 @@ class AzureOpenAILLM(_BaseLLM):
 
     return llm
 
-  def get_fields(self, is_embedded=False):
+  def get_fields(self, is_embedded: bool = False) -> List[LocalField]:
     return super().get_fields(self, is_embedded=is_embedded)
 
 @dataclass
 class AnthropicLLM(_BaseLLM):
-  api_key: str = ''
-  endpoint: str = ''
+  api_key: str = field(default='', metadata={'type': str, 'label': gettext_lazy('api key')})
+  endpoint: str = field(default='', metadata={'type': str, 'label': gettext_lazy('endpoint')})
 
-  def get_llm(self, is_embedded=False):
+  def get_llm(self, is_embedded: bool = False) -> CustomChatAnthropic:
     if is_embedded:
       raise ValueError(f'[{self.__class__.__name__}] Embedding model is not implemented')
     else:
@@ -140,7 +148,7 @@ class AnthropicLLM(_BaseLLM):
 
     return llm
 
-  def get_fields(self, is_embedded=False):
+  def get_fields(self, is_embedded: bool = False) -> List[LocalField]:
     if is_embedded:
       raise ValueError(f'[{self.__class__.__name__}] Embedding model is not implemented')
 
@@ -148,14 +156,14 @@ class AnthropicLLM(_BaseLLM):
 
 @dataclass
 class BedrockLLM(_BaseLLM):
-  service_name: str = 'bedrock-runtime'
-  region_name: str = ''
-  version: str = ''
-  endpoint: str = ''
-  access_key: str = ''
-  secret_key: str = ''
+  service_name: str = field(default='bedrock-runtime', metadata={'type': str, 'label': gettext_lazy('service name')})
+  region_name: str = field(default='', metadata={'type': str, 'label': gettext_lazy('region name')})
+  version: str = field(default='', metadata={'type': str, 'label': gettext_lazy('version')})
+  endpoint: str = field(default='', metadata={'type': str, 'label': gettext_lazy('endpoint')})
+  access_key: str = field(default='', metadata={'type': str, 'label': gettext_lazy('access key')})
+  secret_key: str = field(default='', metadata={'type': str, 'label': gettext_lazy('secret key')})
 
-  def get_llm(self, is_embedded=False):
+  def get_llm(self, is_embedded: bool = False) -> Union[BedrockEmbeddings, ChatBedrock]:
     proxy_url = self.proxy
 
     if proxy_url:
@@ -194,18 +202,18 @@ class BedrockLLM(_BaseLLM):
 
     return llm
 
-  def get_fields(self, is_embedded=False):
-    target = super().get_fields(self, is_embedded=is_embedded)
-    target = self.delete_keys(target, ['max_retries'])
+  def get_fields(self, is_embedded: bool = False) -> List[LocalField]:
+    targets = super().get_fields(self, is_embedded=is_embedded)
+    targets = self.delete_fields(targets, ['max_retries'])
 
-    return target
+    return targets
 
 @dataclass
 class FireworksLLM(_BaseLLM):
-  api_key: str = ''
-  endpoint: str = ''
+  api_key: str = field(default='', metadata={'type': str, 'label': gettext_lazy('api key')})
+  endpoint: str = field(default='', metadata={'type': str, 'label': gettext_lazy('endpoint')})
 
-  def get_llm(self, is_embedded=False):
+  def get_llm(self, is_embedded: bool = False) -> Union[CustomFireworksEmbeddings, CustomChatFireworks]:
     if is_embedded:
       llm = CustomFireworksEmbeddings(
         http_client=get_client(proxy=self.proxy, is_async=False),
@@ -227,20 +235,20 @@ class FireworksLLM(_BaseLLM):
 
     return llm
 
-  def get_fields(self, is_embedded=False):
-    target = super().get_fields(self, is_embedded=is_embedded)
+  def get_fields(self, is_embedded: bool = False) -> List[LocalField]:
+    targets = super().get_fields(self, is_embedded=is_embedded)
 
     if is_embedded:
-      target = self.delete_keys(target, ['max_retries'])
+      targets = self.delete_fields(targets, ['max_retries'])
 
-    return target
+    return targets
 
 @dataclass
 class OllamaLLM(_BaseLLM):
-  model: str = 'llama2'
-  endpoint: str = ''
+  model: str = field(default='llama2', metadata={'type': str, 'label': gettext_lazy('model name')})
+  endpoint: str = field(default='', metadata={'type': str, 'label': gettext_lazy('endpoint')})
 
-  def get_llm(self, is_embedded=False):
+  def get_llm(self, is_embedded=False) -> Union[OllamaEmbeddings, ChatOllama]:
     if is_embedded:
       llm = OllamaEmbeddings(
         model=self.model,
@@ -256,19 +264,19 @@ class OllamaLLM(_BaseLLM):
 
     return llm
 
-  def get_fields(self, is_embedded=False):
-    target = super().get_fields(self, is_embedded=False)
-    target = self.delete_keys(target, ['max_retries', 'stream'])
+  def get_fields(self, is_embedded: bool = False) -> List[LocalField]:
+    targets = super().get_fields(self, is_embedded=False)
+    targets = self.delete_fields(targets, ['max_retries', 'stream'])
 
-    return target
+    return targets
 
 @dataclass
 class GeminiLLM(_BaseLLM):
-  model: str = 'gemini'
-  service_account: Mapping[str, str] = None
-  location: str = 'us-central1'
+  model: str = field(default='gemini', metadata={'type': str, 'label': gettext_lazy('model name')})
+  service_account: Mapping[str, str] = field(default=None, metadata={'type': dict, 'label': gettext_lazy('service account')})
+  location: str = field(default='us-central1', metadata={'type': str, 'label': gettext_lazy('location')})
 
-  def get_llm(self, is_embedded=False):
+  def get_llm(self, is_embedded=False) -> Union[VertexAIEmbeddings, ChatVertexAI]:
     if self.service_account is None:
       raise ValueError(f'[{self.__class__.__name__}] service_account must be set. Please check your configure.')
     # Collect credentials from service account information
@@ -296,5 +304,5 @@ class GeminiLLM(_BaseLLM):
 
     return llm
 
-  def get_fields(self, is_embedded=False):
+  def get_fields(self, is_embedded: bool = False) -> List[LocalField]:
     return super().get_fields(self, is_embedded=is_embedded)

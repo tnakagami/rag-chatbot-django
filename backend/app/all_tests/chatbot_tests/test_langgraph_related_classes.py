@@ -610,7 +610,7 @@ def test_check_invalid_score_fn_of_vectorstore(get_vectorstore_instance):
   DistanceStrategy.EUCLIDEAN,
   DistanceStrategy.COSINE,
   DistanceStrategy.MAX_INNER_PRODUCT,
-])
+], ids=['Euclidean-distance', 'Cosine-similarity', 'max-inner-product'])
 def test_check_private_method_of_vectorstore(create_embeddingstores, distance_type):
   base_instance, records = create_embeddingstores
   instance = CustomVectorStore(
@@ -624,7 +624,7 @@ def test_check_private_method_of_vectorstore(create_embeddingstores, distance_ty
   # Collect private method
   target_func = instance._CustomVectorStore__collect_records
   # Call the function
-  queryset = target_func(assistant.pk, instance.embeddings.emb_query)
+  queryset = target_func(instance.embeddings.emb_query, assistant_id=assistant.pk)
   record = queryset.first()
 
   assert record.pk == nn_pk
@@ -679,7 +679,7 @@ def test_check_similarity_search_of_vectorstore(create_embeddingstores):
   query = 'abc'
   assistant = records[0].assistant
   size = 3
-  outputs = instance.similarity_search(query, assistant.pk, k=size)
+  outputs = instance.similarity_search(query, k=size, assistant_id=assistant.pk)
 
   assert len(outputs) == size
   assert all([isinstance(record, Document) for record in outputs])
@@ -692,7 +692,7 @@ def test_check_similarity_search_with_score_of_vectorstore(create_embeddingstore
   query = 'abc'
   assistant = records[0].assistant
   size = 3
-  outputs = instance.similarity_search_with_score(query, assistant.pk, k=size)
+  outputs = instance.similarity_search_with_score(query, k=size, assistant_id=assistant.pk)
 
   assert len(outputs) == size
   assert all([isinstance(record, Document) and score is not None for record, score in outputs])
@@ -706,7 +706,7 @@ def test_check_mmr_search_of_vectorstore(create_embeddingstores):
   assistant = records[0].assistant
   size = 3
   fetch_k = 8
-  outputs = instance.max_marginal_relevance_search(query, assistant.pk, k=size, fetch_k=fetch_k)
+  outputs = instance.max_marginal_relevance_search(query, k=size, fetch_k=fetch_k, assistant_id=assistant.pk)
 
   assert all([isinstance(record, Document) for record in outputs])
 
@@ -719,7 +719,7 @@ def test_check_mmr_search_with_score_of_vectorstore(create_embeddingstores):
   assistant = records[0].assistant
   size = 3
   fetch_k = 8
-  outputs = instance.max_marginal_relevance_search_with_score(query, assistant.pk, k=size, fetch_k=fetch_k)
+  outputs = instance.max_marginal_relevance_search_with_score(query, k=size, fetch_k=fetch_k, assistant_id=assistant.pk)
 
   assert all([isinstance(record, Document) and score is not None for record, score in outputs])
 
@@ -755,9 +755,9 @@ async def test_check_afrom_text_method_of_vectorstore(get_vectorstore_instance, 
   instance = await CustomVectorStore.afrom_texts(
     manager=base_instance.manager,
     strategy=base_instance._distance_strategy,
-    assistant_id=assistant.pk,
     texts=texts,
     embedding=base_instance.embeddings,
+    assistant_id=assistant.pk,
   )
   documents = [record.document async for record in base_instance.manager.all()]
 

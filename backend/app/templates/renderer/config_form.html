@@ -1,0 +1,10 @@
+{% for field in form %}
+<div class="row my-2">
+  <div class="col">
+    <div class="form-floating">
+      {{ field }}
+      <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+    </div>
+  </div>
+</div>
+{% endfor %}

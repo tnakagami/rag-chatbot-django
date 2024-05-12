@@ -1,14 +1,17 @@
+import logging
 from typing import Dict, List, Union, Tuple
-from django.db import models
+from django.db import models, NotSupportedError
 from django.utils.translation import gettext_lazy
 from django.contrib.auth import get_user_model
 from pgvector.django import VectorField, L2Distance, CosineDistance, MaxInnerProduct
 from picklefield.fields import PickledObjectField
 from .agents import AgentArgs, ToolArgs, AgentType, ToolType
 from .utils.checkpoint import DjangoPostgresCheckpoint
-from .utils.vectorstore import DistanceStrategy
+from .utils.vectorstore import DistanceStrategy, CustomVectorStore
+from .utils.ingest import IngestBlobRunnable
 
 User = get_user_model()
+g_logger = logging.getLogger(__name__)
 
 class BaseManager(models.Manager):
   def get_or_none(self, **kwargs):
@@ -16,6 +19,11 @@ class BaseManager(models.Manager):
       return self.get_queryset().get(**kwargs)
     except self.model.DoesNotExist:
       return None
+
+  def get_own_items(self, user, field_name='user'):
+    kwargs = {f'{field_name}__pk': user.pk}
+
+    return self.get_queryset().filter(**kwargs).order_by('pk')
 
 class BaseConfig(models.Model):
   name = models.CharField(
@@ -27,10 +35,33 @@ class BaseConfig(models.Model):
     gettext_lazy('Config'),
     blank=True,
     null=True,
+    default=dict,
     help_text=gettext_lazy('Required: JSON format'),
   )
 
   objects = BaseManager()
+
+  def get_shortname(self, name):
+    max_len = 32
+
+    if len(name) > max_len:
+      ret = '{}...'.format(name[:max_len])
+    else:
+      ret = name
+
+    return ret
+
+  def get_config(self):
+    return self.config
+
+  @classmethod
+  def get_config_form_args(cls, instance=None, default_type=AgentType.OPENAI):
+    if instance is None:
+      type_id, config = default_type, None
+    else:
+      type_id, config = instance.get_config()
+
+    return type_id, config
 
 class Agent(BaseConfig):
   user = models.ForeignKey(
@@ -47,7 +78,15 @@ class Agent(BaseConfig):
   )
 
   def __str__(self):
-    return f'{self.name} ({self.agent_type})'
+    agent_type = AgentType(self.agent_type)
+
+    return f'{self.name} ({agent_type})'
+
+  def get_shortname(self):
+    return super().get_shortname(str(self))
+
+  def get_config(self):
+    return self.agent_type, super().get_config()
 
   def get_executor(self, args: AgentArgs):
     return AgentType.get_executor(self.agent_type, self.config, args)
@@ -81,7 +120,7 @@ class Embedding(BaseConfig):
     choices=DistanceType.choices,
     default=DistanceType.COSINE,
   )
-  emb = models.IntegerField(
+  emb_type = models.IntegerField(
     gettext_lazy('Embedding type'),
     choices=AgentType.get_embedding_choices(),
     default=AgentType.OPENAI,
@@ -89,10 +128,18 @@ class Embedding(BaseConfig):
   )
 
   def __str__(self):
-    return f'{self.name} ({self.emb})'
+    emb_type = AgentType(self.emb_type)
+
+    return f'{self.name} ({emb_type})'
+
+  def get_shortname(self):
+    return super().get_shortname(str(self))
+
+  def get_config(self):
+    return self.emb_type, super().get_config()
 
   def get_embedding(self):
-    embedding = AgentType.get_embedding(self.emb, self.config)
+    embedding = AgentType.get_embedding(self.emb_type, self.config)
 
     return embedding
 
@@ -114,12 +161,31 @@ class Tool(BaseConfig):
   )
 
   def __str__(self):
-    return f'{self.name} ({self.tool_type})'
+    tool_type = ToolType(self.tool_type)
+
+    return f'{self.name} ({tool_type})'
+
+  def get_shortname(self):
+    return super().get_shortname(str(self))
+
+  def get_config(self):
+    return self.tool_type, super().get_config()
+
+  @classmethod
+  def get_config_form_args(cls, instance=None):
+    return super().get_config_form_args(instance=instance, default_type=ToolType.RETRIEVER)
 
   def get_tool(self, args: ToolArgs):
     return ToolType.get_tool(self.tool_type, self.config, args)
 
+class AssistantManager(BaseManager):
+  def collection_with_docfiles(self, **kwargs):
+    return self.get_queryset().prefetch_related('docfiles').filter(**kwargs)
+
 class Assistant(models.Model):
+  class Meta:
+    ordering = ['pk']
+
   user = models.ForeignKey(
     User,
     on_delete=models.CASCADE,
@@ -152,6 +218,7 @@ class Assistant(models.Model):
   tools = models.ManyToManyField(
     Tool,
     related_name='tools',
+    blank=True,
     verbose_name=gettext_lazy('Tools used in RAG'),
   )
   is_interrupt = models.BooleanField(
@@ -160,7 +227,7 @@ class Assistant(models.Model):
     help_text=gettext_lazy('If True, Interrupt before the specific node (e.g. "action" node) when the workflow is stopped with human intervention.'),
   )
 
-  objects = BaseManager()
+  objects = AssistantManager()
 
   def __str__(self):
     return f'{self.name}'
@@ -191,6 +258,59 @@ class Assistant(models.Model):
 
     return assistant
 
+class DocumentFile(models.Model):
+  MAX_FILENAME_LENGTH = 255
+  class Meta:
+    ordering = ['pk']
+
+  assistant = models.ForeignKey(
+    Assistant,
+    on_delete=models.CASCADE,
+    blank=True,
+    related_name='docfiles',
+    verbose_name=gettext_lazy('Base assistant of document files'),
+  )
+  name = models.CharField(
+    gettext_lazy('Document name'),
+    max_length=MAX_FILENAME_LENGTH,
+    blank=True,
+    help_text=gettext_lazy(f'{MAX_FILENAME_LENGTH} characters or fewer.'),
+  )
+
+  objects = BaseManager()
+
+  def __str__(self):
+    return f'{self.name} ({self.assistant})'
+
+  @staticmethod
+  def get_valid_extensions():
+    return ['.pdf', '.txt', '.html', '.docx']
+
+  @classmethod
+  def from_files(cls, assistant, filefields):
+    store = CustomVectorStore(
+      manager=EmbeddingStoreManager.objects,
+      strategy=assistant.embedding.get_distance_strategy(),
+      embeddings=assistant.embedding.get_embedding(),
+    )
+    runnable = IngestBlobRunnable(store=store, assistant_id=assistant.pk)
+    ids = []
+
+    for field in filefields:
+      instance = cls.objects.create(
+        assistant=assistant,
+        name=field.name,
+      )
+      blob = runnable.convert_input2blob(field)
+
+      try:
+        current_ids = runnable.invoke(blob, docfile_id=instance.pk)
+        ids.extend(current_ids)
+      except Exception as ex:
+        g_logger.warn(f'DocumentFile[from_files]{ex}')
+
+    return ids
+
 class Thread(models.Model):
   assistant = models.ForeignKey(
     Assistant,
@@ -204,6 +324,12 @@ class Thread(models.Model):
     max_length=255,
     help_text=gettext_lazy('255 characters or fewer.'),
   )
+  docfiles = models.ManyToManyField(
+    DocumentFile,
+    related_name='docfiles',
+    blank=True,
+    verbose_name=gettext_lazy('Document files used in RAG'),
+  )
 
   objects = BaseManager()
 
@@ -211,7 +337,7 @@ class Thread(models.Model):
     return f'{self.name} ({self.assistant})'
 
 class EmbeddingStoreQuerySet(models.QuerySet):
-  def similarity_search_with_distance_by_vector(self, embedded_query, assistant_id, distance_strategy):
+  def similarity_search_with_distance_by_vector(self, embedded_query, distance_strategy, **kwargs):
     # In the case of L2Distance:
     #  distance(x_vec, y_vec) = np.linalg.norm(x_vec - y_vec, axis=0)
     # In the case of CosineDistance:
@@ -224,24 +350,48 @@ class EmbeddingStoreQuerySet(models.QuerySet):
       DistanceStrategy.MAX_INNER_PRODUCT: MaxInnerProduct,
     }
     strategy = patterns.get(distance_strategy, CosineDistance)
-    queryset = self.filter(assistant__pk=assistant_id) \
-                   .annotate(distance=strategy('embedding', embedded_query)) \
-                   .order_by('distance')
+    assistant_id = kwargs.get('assistant_id', None)
+    docfile_ids = kwargs.get('docfile_ids', None)
+
+    if assistant_id is not None:
+      if docfile_ids is None or not isinstance(docfile_ids, list):
+        params = {'assistant__pk': assistant_id}
+      else:
+        params = {'assistant__pk': assistant_id, 'docfile__pk__in': docfile_ids}
+
+      queryset = self.filter(**params) \
+                     .annotate(distance=strategy('embedding', embedded_query)) \
+                     .order_by('distance')
+    else:
+      queryset = self.none()
 
     return queryset
 
 class EmbeddingStoreManager(BaseManager, models.Manager.from_queryset(EmbeddingStoreQuerySet)):
-  def create(self, assistant_id, *args, **kwargs):
-    assistant = Assistant.objects.get(pk=assistant_id)
+  def create(self, *args, **kwargs):
+    assistant_id = kwargs.get('assistant_id', None)
+    docfile_id = kwargs.get('docfile_id', None)
 
-    return super().create(assistant=assistant, *args, **kwargs)
+    if assistant_id is None or docfile_id is None:
+      raise NotSupportedError
+
+    assistant = Assistant.objects.get(pk=assistant_id)
+    docfile = DocumentFile.objects.get(pk=docfile_id)
+
+    return super().create(assistant=assistant, docfile=docfile, *args, **kwargs)
 
 class EmbeddingStore(models.Model):
   assistant = models.ForeignKey(
     Assistant,
     on_delete=models.CASCADE,
     related_name='embedding_stores',
-    verbose_name=gettext_lazy('Owner'),
+    verbose_name=gettext_lazy('Base assistant of embedding store'),
+  )
+  docfile = models.ForeignKey(
+    DocumentFile,
+    on_delete=models.CASCADE,
+    related_name='embedding_stores',
+    verbose_name=gettext_lazy('Base document file of embedding store'),
   )
   embedding = VectorField(
     gettext_lazy('Embedding vector'),

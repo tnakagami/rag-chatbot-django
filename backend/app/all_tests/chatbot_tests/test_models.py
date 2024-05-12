@@ -212,8 +212,8 @@ def test_check_agenttype(mocker, agent_type, agent_name, app_prefix, dummy_llm_t
   )
   agent_id = agent_type.value
   instance = AgentType(agent_id)
-  embedded_config_field = AgentType.get_llm_fields(agent_id, is_embedded=True)
-  llm_config_field = AgentType.get_llm_fields(agent_id, is_embedded=False)
+  embedded_config_field = AgentType.get_llm_fields(agent_id, config={}, is_embedded=True)
+  llm_config_field = AgentType.get_llm_fields(agent_id, config={}, is_embedded=False)
   app = AgentType.get_executor(agent_id, {}, args)
   embedded = AgentType.get_embedding(agent_id, {})
   _llm_wrapper = instance._llm_type({})
@@ -282,11 +282,16 @@ def get_common_data():
 def test_check_baseconfig(get_common_data):
   name, config = get_common_data
   instance = BaseConfig.objects.create(name=name, config=config)
+  target = instance.get_config()
   collected = BaseConfig.objects.get_or_none(pk=instance.pk)
   doesnot_exist = BaseConfig.objects.get_or_none(pk=instance.pk+1)
+  default_type_id, default_config = BaseConfig.get_config_form_args()
 
   assert instance.name == name
   assert instance.config == config
+  assert default_type_id == AgentType.OPENAI
+  assert target == config
+  assert default_config is None
   assert collected is not None
   assert doesnot_exist is None
 
@@ -315,9 +320,15 @@ def test_check_agent(mocker, get_common_data):
   spec_val = specific_agent.get_executor(args)
   rand_val = random_agent.get_executor(args)
   _exists = Agent.objects.get_or_none(pk=default_instance.pk)
+  default_type_id, default_config = Agent.get_config_form_args()
+  instance_type_id, instance_config = Agent.get_config_form_args(instance=specific_agent)
 
   assert default_instance.agent_type == AgentType.OPENAI.value
-  assert str(specific_agent) == f'{name} ({_agent_type})'
+  assert str(specific_agent) == f'{name} ({AgentType.AZURE.label})'
+  assert default_type_id == AgentType.OPENAI
+  assert default_config is None
+  assert instance_type_id == _agent_type
+  assert instance_config == config
   assert specific_agent.user.pk == user.pk
   assert specific_agent.name == name
   assert specific_agent.config == config
@@ -344,7 +355,7 @@ def test_check_embedding(mocker, get_common_data):
     config=config,
     user=user,
     distance_strategy=Embedding.DistanceType.EUCLIDEAN,
-    emb=_emb_type,
+    emb_type=_emb_type,
   )
   random_embedding = factories.EmbeddingFactory()
   default_ds = default_instance.get_distance_strategy()
@@ -352,10 +363,16 @@ def test_check_embedding(mocker, get_common_data):
   spec_val = specific_embedding.get_embedding()
   rand_val = random_embedding.get_embedding()
   _exists = Embedding.objects.get_or_none(pk=default_instance.pk)
+  default_type_id, default_config = Embedding.get_config_form_args()
+  instance_type_id, instance_config = Embedding.get_config_form_args(instance=specific_embedding)
 
-  assert default_instance.emb == AgentType.OPENAI.value
+  assert default_instance.emb_type == AgentType.OPENAI.value
   assert default_instance.distance_strategy == Embedding.DistanceType.COSINE.value
-  assert str(specific_embedding) == f'{name} ({_emb_type})'
+  assert str(specific_embedding) == f'{name} ({AgentType.AZURE.label})'
+  assert default_type_id == AgentType.OPENAI
+  assert default_config is None
+  assert instance_type_id == _emb_type
+  assert instance_config == config
   assert default_ds == DistanceStrategy.COSINE
   assert specific_ds == DistanceStrategy.EUCLIDEAN
   assert spec_val == ret_val
@@ -387,9 +404,15 @@ def test_check_tool(mocker, get_common_data):
   spec_val = specific_tool.get_tool(args)
   rand_val = random_tool.get_tool(args)
   _exists = Tool.objects.get_or_none(pk=default_instance.pk)
+  default_type_id, default_config = Tool.get_config_form_args()
+  instance_type_id, instance_config = Tool.get_config_form_args(instance=specific_tool)
 
   assert default_instance.tool_type == ToolType.RETRIEVER.value
-  assert str(specific_tool) == f'{name} ({_tool_type})'
+  assert str(specific_tool) == f'{name} ({ToolType.DDG_SEARCH.label})'
+  assert default_type_id == ToolType.RETRIEVER
+  assert default_config is None
+  assert instance_type_id == _tool_type
+  assert instance_config == config
   assert spec_val == ret_val
   assert rand_val == ret_val
   assert _exists is not None
@@ -397,7 +420,52 @@ def test_check_tool(mocker, get_common_data):
 @pytest.mark.chatbot
 @pytest.mark.model
 @pytest.mark.django_db
-@pytest.mark.parametrize('num_tools,', [0, 1, 2])
+@pytest.mark.parametrize('model_class,factory_class', [
+  (Agent, factories.AgentFactory),
+  (Embedding, factories.EmbeddingFactory),
+  (Tool, factories.ToolFactory),
+], ids=['agent-own-items', 'embedding-own-items', 'tool-own-items'])
+def test_check_own_items_queryset(model_class, factory_class):
+  first_user, second_user = factories.UserFactory.create_batch(2)
+  models_1st_user = factory_class.create_batch(7, user=first_user)
+  models_2nd_user = factory_class.create_batch(8, user=second_user)
+  ids_1st_models = [instance.pk for instance in models_1st_user]
+  ids_2nd_models = [instance.pk for instance in models_2nd_user]
+  qs_1st_owner = model_class.objects.get_own_items(first_user)
+  qs_2nd_owner = model_class.objects.get_own_items(second_user)
+
+  assert len(qs_1st_owner) == len(models_1st_user)
+  assert len(qs_2nd_owner) == len(models_2nd_user)
+  assert all([pk in ids_1st_models for pk in qs_1st_owner.values_list('pk', flat=True)])
+  assert all([pk in ids_2nd_models for pk in qs_2nd_owner.values_list('pk', flat=True)])
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize('factory_class,kwargs,expected', [
+  (factories.AgentFactory,     {'name':  'a'*9, 'agent_type': AgentType.ANTHROPIC}, '{} ({})'.format('a'*9, AgentType.ANTHROPIC.label)),
+  (factories.AgentFactory,     {'name': 'a'*10, 'agent_type': AgentType.ANTHROPIC}, '{} (Anthropic (Claude 2)...'.format('a'*10)),
+  (factories.EmbeddingFactory, {'name': 'b'*15, 'emb_type':   AgentType.BEDROCK},   '{} ({})'.format('b'*15, AgentType.BEDROCK.label)),
+  (factories.EmbeddingFactory, {'name': 'b'*16, 'emb_type':   AgentType.BEDROCK},   '{} (Amazon Bedrock...'.format('b'*16)),
+  (factories.ToolFactory,      {'name': 'c'*20, 'tool_type':  ToolType.RETRIEVER},  '{} ({})'.format('c'*20, ToolType.RETRIEVER.label)),
+  (factories.ToolFactory,      {'name': 'c'*21, 'tool_type':  ToolType.RETRIEVER},  '{} (Retriever...'.format('c'*21)),
+], ids=[
+  'agent-name-length-is-less-than-or-equal-32',
+  'agent-name-length-is-more-than-32',
+  'embedding-name-length-is-less-than-or-equal-32',
+  'embedding-name-length-is-more-than-32',
+  'tool-name-length-is-less-than-or-equal-32',
+  'tool-name-length-is-more-than-32',
+])
+def test_check_get_shortname_method(factory_class, kwargs, expected):
+  _targets = factory_class(**kwargs)
+
+  assert _targets.get_shortname() == expected
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize('num_tools', [0, 1, 2])
 def test_check_assistant(mocker, num_tools):
   targets = [tools.Tool(name='dummy', func=None, description='test') for _ in range(num_tools)]
   name = 'test'
@@ -483,13 +551,26 @@ def test_check_similarity_search_method(get_normalizer, distance_strategy, calc_
   distance = calc_similarity(embedding_vectors.T, exact_vector)
   sorted_indices = np.argsort(sort_direction * distance)
   # Collect expected primary keys
-  print(sorted_indices, sorted_indices.shape, ids.shape)
   exact_ids = ids[sorted_indices]
   # Calculate distance by using the Django manager's method
-  queryset = EmbeddingStore.objects.similarity_search_with_distance_by_vector(exact_vector, assistant.pk, distance_strategy)
+  queryset = EmbeddingStore.objects.similarity_search_with_distance_by_vector(exact_vector, distance_strategy, assistant_id=assistant.pk)
   estimated_ids = np.array(queryset.values_list('pk', flat=True))
 
   assert (exact_ids == estimated_ids).all()
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize('distance_strategy', [
+  DistanceStrategy.EUCLIDEAN,
+  DistanceStrategy.COSINE,
+  DistanceStrategy.MAX_INNER_PRODUCT,
+], ids=['invalid-pk-of-l2distance', 'invalid-pk-of-cosine-similarity', 'invalid-pk-of-max-inner-product'])
+def test_check_no_assistant_id_of_similarity_search_method(distance_strategy):
+  empty_query = EmbeddingStore.objects.none()
+  queryset = EmbeddingStore.objects.similarity_search_with_distance_by_vector([1,2,3], distance_strategy)
+
+  assert isinstance(queryset, type(empty_query))
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -559,7 +640,6 @@ def test_langgraph_checkpoint_updation(
     checkpoint=checkpoint,
   )
   total = LangGraphCheckpoint.objects.all().count()
-  print(instance, created)
 
   assert total == expected_total
   assert created == expected_created

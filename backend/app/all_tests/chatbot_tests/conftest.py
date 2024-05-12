@@ -26,31 +26,25 @@ def client_proxy_checker():
   return inner
 
 @pytest.fixture
-def check_llm_fields():
-  def inner(llm_fields, expected):
-    use_proxy = 'proxy' in expected.keys()
+def check_fields():
+  def inner(fields, expected, ignores=None):
+    if ignores is None:
+      ignores = []
+
+    dict_data = dict([_field.astuple() for _field in fields])
+    key_name = 'proxy'
+
+    if key_name in expected.keys():
+      valid_proxy = dict_data[key_name] == expected[key_name]
+    else:
+      valid_proxy = dict_data.get(key_name, None) is None
+    # Delete proxy
+    dict_data.pop(key_name, None)
 
     return all([
-      llm_fields['model'] == expected['model'],
-      llm_fields['temperature'] == expected['temperature'],
-      llm_fields['stream'] == expected['stream'],
-      llm_fields['max_retries'] == expected['max_retries'],
-      llm_fields['proxy'] == expected['proxy'] if use_proxy else llm_fields['proxy'] is None,
-    ])
-
-  return inner
-
-@pytest.fixture
-def check_embedding_fields():
-  def inner(embedinng_fields, expected):
-    use_proxy = 'proxy' in expected.keys()
-    ignore_keys = ['temperature', 'stream']
-
-    return all([
-      all([ignore_key not in embedinng_fields.keys() for ignore_key in ignore_keys]),
-      embedinng_fields['model'] == expected['model'],
-      embedinng_fields['max_retries'] == expected['max_retries'],
-      embedinng_fields['proxy'] == expected['proxy'] if use_proxy else embedinng_fields['proxy'] is None,
+      all([key not in dict_data.keys() for key in ignores]),
+      valid_proxy,
+      all([value == expected[name] for name, value in dict_data.items()]),
     ])
 
   return inner

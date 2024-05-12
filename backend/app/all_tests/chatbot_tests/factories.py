@@ -59,7 +59,7 @@ class EmbeddingFactory(factory.django.DjangoModelFactory):
   name = factory.LazyAttribute(lambda instance: _clip(faker.name(), 255))
   config = {}
   distance_strategy = FuzzyChoice(distance_strategies)
-  emb = FuzzyChoice(emb_types)
+  emb_type = FuzzyChoice(emb_types)
 
 class ToolFactory(factory.django.DjangoModelFactory):
   class Meta:
@@ -112,7 +112,7 @@ class EmbeddingStoreFactory(factory.django.DjangoModelFactory):
     manager = cls._get_manager(model_class)
     assistant = kwargs.pop('assistant')
 
-    return manager.create(assistant.pk, *args, **kwargs)
+    return manager.create(assistant_id=assistant.pk, *args, **kwargs)
 
 class CheckpointFactory(factory.django.DjangoModelFactory):
   class Meta:

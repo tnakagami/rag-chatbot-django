@@ -1,6 +1,6 @@
 import pytest
 from chatbot.models.utils import (
-  _client,
+  _local,
   _customFireworks,
   _customLLMWrapper,
   _customRetriever,
@@ -126,6 +126,99 @@ def mock_call_kay_is_failed(get_kay_retriever_args, mocker):
 @pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.parametrize([
+  'value',
+  'default',
+  'data_type',
+  'label',
+], [
+  (3, 4, int, 'int data'),
+  ('a', 'b', str, 'str data'),
+  (True, False, bool, 'bool data'),
+  ([3, 'a'], [], list, 'list data'),
+  ({'x': 3}, {}, dict, 'dict data'),
+])
+def test_check_valid_field(value, default, data_type, label):
+  name = 'test'
+  field = _local.LocalField(
+    name=name,
+    value=value,
+    default=default,
+    data_type=data_type,
+    label=label,
+  )
+  _tuple_data = field.astuple()
+  _dict_data = field.asdict()
+
+  assert field.name == name
+  assert field.value == value
+  assert field.default == default
+  assert type(field.data_type()) == type(field.data)
+  assert field.label == label
+  assert _tuple_data[0] == name
+  assert _tuple_data[1] == value
+  assert name in _dict_data.keys()
+  assert _dict_data.get(name) == value
+
+@pytest.mark.chatbot
+@pytest.mark.private
+@pytest.mark.parametrize([
+  'value',
+  'default',
+  'data_type',
+  'expected',
+], [
+  ('a', 3, int, 3),
+  (3, 'c', str, '3'),
+  ('True', True, bool, True),
+  ('True', False, bool, True),
+  ('False', True, bool, False),
+  ('False', False, bool, False),
+  ('{}', {'x': 3}, dict, {}),
+  ('[]', [2, 'b'], list, ['[',']']),
+  ('{2}', {'y': 1}, dict, {'y': 1}),
+  ('[3]', {'y': 1}, list, ['[', '3',']']),
+  (None, 0, int, None),
+  (None, 'a', str, None),
+  (None, {'c': 3}, dict, None),
+  (None, [8], list, None),
+], ids=[
+  'return-default', 'get-string', 'is-string-True-when-default-is-True', 'is-string-True-when-default-is-False',
+  'is-string-False-when-default-is-True', 'is-string-False-when-default-is-False', 'string-dict', 'string-list',
+  'invalid-dict', 'str2list', 'int-None', 'str-None', 'dict-None', 'list-None',
+])
+def test_check_unexpected_value(value, default, data_type, expected):
+  field = _local.LocalField(
+    value=value,
+    default=default,
+    data_type=data_type,
+  )
+  out = field.data
+
+  assert out == expected
+
+@pytest.mark.chatbot
+@pytest.mark.private
+def test_check_data_type():
+  int_field = _local.LocalField(data_type=int)
+  bool_field = _local.LocalField(data_type=bool)
+  str_field = _local.LocalField(data_type=str)
+  list_field = _local.LocalField(data_type=list)
+  dict_field = _local.LocalField(data_type=dict)
+
+  assert int_field.is_int
+  assert bool_field.is_bool
+  assert str_field.is_str
+  assert list_field.is_list
+  assert dict_field.is_dict
+  assert all([not getattr(int_field, prop_name)  for prop_name in [          'is_bool', 'is_str', 'is_list', 'is_dict',]])
+  assert all([not getattr(bool_field, prop_name) for prop_name in ['is_int',            'is_str', 'is_list', 'is_dict',]])
+  assert all([not getattr(str_field, prop_name)  for prop_name in ['is_int', 'is_bool',           'is_list', 'is_dict',]])
+  assert all([not getattr(list_field, prop_name) for prop_name in ['is_int', 'is_bool', 'is_str',            'is_dict',]])
+  assert all([not getattr(dict_field, prop_name) for prop_name in ['is_int', 'is_bool', 'is_str', 'is_list',           ]])
+
+@pytest.mark.chatbot
+@pytest.mark.private
+@pytest.mark.parametrize([
   'proxy',
   'is_async',
   'expected_class',
@@ -149,7 +242,7 @@ def test_check_valid_client(
   expected_port,
   expected_target,
 ):
-  instance = _client.get_client(proxy=proxy, is_async=is_async)
+  instance = _local.get_client(proxy=proxy, is_async=is_async)
   expected_proxy = {
     'scheme': expected_scheme,
     'host': expected_host,
@@ -189,7 +282,7 @@ def test_check_valid_client(
   'none-proxy-async',
 ])
 def test_check_invalid_client(proxy, is_async):
-  instance = _client.get_client(proxy=proxy, is_async=is_async)
+  instance = _local.get_client(proxy=proxy, is_async=is_async)
 
   assert instance is None
 
@@ -410,7 +503,7 @@ def test_check_proxy_of_custom_fireworks_embeddings(client_proxy_checker):
     'model': 'fireworks-embeddings-model',
     'fireworks_api_key': 'api-key',
     'base_url': 'http://example.com/foo',
-    'http_client': _client.get_client('http://proxy.com:8000/valid', is_async=False),
+    'http_client': _local.get_client('http://proxy.com:8000/valid', is_async=False),
   }
   llm = _customLLMWrapper.CustomFireworksEmbeddings(**kwargs)
   expected_proxy = {
@@ -456,8 +549,8 @@ def test_check_custom_dalle_api_wrapper_with_proxy(get_dalle_api_wrapper_args, c
   kwargs = get_dalle_api_wrapper_args
   wrapper = _customRetriever.CustomDallEAPIWrapper(
     **kwargs,
-    http_client=_client.get_client(proxy_url, is_async=False),
-    http_async_client=_client.get_client(proxy_url, is_async=True),
+    http_client=_local.get_client(proxy_url, is_async=False),
+    http_async_client=_local.get_client(proxy_url, is_async=True),
   )
   expected_proxy = {
     'scheme': b'http',
