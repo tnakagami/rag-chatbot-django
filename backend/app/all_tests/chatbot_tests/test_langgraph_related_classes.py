@@ -440,9 +440,10 @@ def create_embeddingstores(django_db_blocker, get_vectors, get_normalizer, get_v
 
   with django_db_blocker.unblock():
     assistant = factories.AssistantFactory()
+    docfile = factories.DocumentFileFactory(assistant=assistant)
 
     for embedding in embeddings:
-      record = factories.EmbeddingStoreFactory.build(assistant=assistant, ndim=ndim)
+      record = factories.EmbeddingStoreFactory.build(assistant=assistant, docfile=docfile, ndim=ndim)
       record.embedding = embedding
       record.save()
       records.append(record)
@@ -455,15 +456,18 @@ def create_embeddingstores(django_db_blocker, get_vectors, get_normalizer, get_v
 def test_check_add_embeddings_method_of_vectorstore(get_instance_with_data):
   instance, texts, embeddings = get_instance_with_data
   assistant = factories.AssistantFactory()
-  outputs = instance.add_embeddings(
+  docfile = factories.DocumentFileFactory(assistant=assistant)
+  ids = instance.add_embeddings(
     texts=texts,
     embeddings=embeddings,
     assistant_id=assistant.pk,
+    docfile_id=docfile.pk,
   )
   records = list(instance.manager.all().order_by('pk'))
 
-  assert all([original == predicted for original, predicted in zip(texts, outputs)])
+  assert all([original.pk == int(predicted) for original, predicted in zip(records, ids)])
   assert len(records) == len(texts)
+  assert len(ids) == len(texts)
   assert all([
     all([record.document == document, (np.fabs(record.embedding - embedding) < 1e-7).all()])
     for record, document, embedding in zip(records, texts, embeddings)
@@ -475,14 +479,17 @@ def test_check_add_embeddings_method_of_vectorstore(get_instance_with_data):
 def test_check_add_texts_method_of_vectorstore(get_instance_with_data):
   instance, texts, _ = get_instance_with_data
   assistant = factories.AssistantFactory()
-  outputs = instance.add_texts(
+  docfile = factories.DocumentFileFactory(assistant=assistant)
+  ids = instance.add_texts(
     texts=texts,
     assistant_id=assistant.pk,
+    docfile_id=docfile.pk,
   )
   records = list(instance.manager.order_by('pk'))
 
-  assert all([original == predicted for original, predicted in zip(texts, outputs)])
+  assert all([original.pk == int(predicted) for original, predicted in zip(records, ids)])
   assert len(records) == len(texts)
+  assert len(ids) == len(texts)
   assert all([record.document == document for record, document in zip(records, texts)])
 
 @pytest.mark.chatbot
@@ -729,12 +736,14 @@ def test_check_mmr_search_with_score_of_vectorstore(create_embeddingstores):
 def test_check_from_text_method_of_vectorstore(get_instance_with_data):
   base_instance, texts, _ = get_instance_with_data
   assistant = factories.AssistantFactory()
+  docfile = factories.DocumentFileFactory(assistant=assistant)
   instance = CustomVectorStore.from_texts(
     manager=base_instance.manager,
     strategy=base_instance._distance_strategy,
-    assistant_id=assistant.pk,
     texts=texts,
     embedding=base_instance.embeddings,
+    assistant_id=assistant.pk,
+    docfile_id=docfile.pk,
   )
   records = base_instance.manager.all()
 
@@ -752,12 +761,14 @@ async def test_check_afrom_text_method_of_vectorstore(get_vectorstore_instance, 
   base_instance = get_vectorstore_instance
   texts = ['abc' for _ in range(10)]
   assistant = await sync_to_async(factories.AssistantFactory)()
+  docfile = await sync_to_async(factories.DocumentFileFactory)(assistant=assistant)
   instance = await CustomVectorStore.afrom_texts(
     manager=base_instance.manager,
     strategy=base_instance._distance_strategy,
     texts=texts,
     embedding=base_instance.embeddings,
     assistant_id=assistant.pk,
+    docfile_id=docfile.pk,
   )
   documents = [record.document async for record in base_instance.manager.all()]
 

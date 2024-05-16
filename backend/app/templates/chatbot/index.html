@@ -2,6 +2,14 @@
 {% load i18n %}
 {% load bootstrap_icons %}
 
+{% block header %}
+<style>
+  .delete-target-docfile:hover {
+    cursor: pointer;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 {% include 'breadcrubs.html' with title=_("Chatbot - Index") %}
 {# Assistant/Setting creation #}
@@ -32,31 +40,28 @@
     </div>
     {% for assistant in assistants %}
     <div class="row align-items-center mx-2 border {% if forloop.counter > 1 %}border-top-0{% endif %}">
-      <div class="col-8 col-md-10 border-end">
-        <div class="row">
-          <div class="col-8 col-md-10 border-end">
-            <a href="#" class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover">
-              {{ assistant|truncatechars:32 }}
-            </a>
-          </div>
-          <div class="collapse" id="document-files{{ forloop.counter }}">
-            {% for docfile in assistant.docfiles.all %}
-            <div class="row align-items-center mx-2 border {% if forloop.counter > 1 %}border-top-0{% endif %}">
-              <div class="col-10 border-end">
-                {{ docfile|truncatechars:32 }}
-              </div>
-              <div class="col-2 p-1 text-center" data-targetname="{{ docfile }}" data-url="{% url 'chatbot:delete_docfile' pk=docfile.pk %}">
-                {% bs_icon 'trash' extra_classes='delete-target-docfile text-danger' %}
-              </div>
+      <div class="col-8 col-md-10 ps-2 pe-0 border-end">
+        <a href="{% url 'chatbot:detail_assistant' pk=assistant.pk %}" 
+           class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover">
+          {{ assistant|truncatechars:32 }}
+        </a>
+        <div class="collapse py-2" id="document-files{{ forloop.counter }}">
+          {% for docfile in assistant.docfiles.all %}
+          <div class="row align-items-center ms-2 me-0 border border-end-0 {% if forloop.counter > 1 %}border-top-0{% endif %}">
+            <div class="col-10 border-end">
+              {{ docfile|truncatechars:32 }}
             </div>
-            {% empty %}
-            <div class="row mx-2">
-              <div class="col">
-                <p>{% trans "No document files exist." %}</p>
-              </div>
+            <div class="col-2 p-1 text-center" data-targetname="{{ docfile }}" data-url="{% url 'chatbot:delete_docfile' pk=docfile.pk %}">
+              {% bs_icon 'trash' extra_classes='delete-target-docfile text-danger' %}
             </div>
-            {% endfor %}
           </div>
+          {% empty %}
+          <div class="row mx-2">
+            <div class="col">
+              <p>{% trans "No document files exist." %}</p>
+            </div>
+          </div>
+          {% endfor %}
         </div>
       </div>
       <div class="col-4 col-md-2 px-0">
@@ -152,18 +157,19 @@
   const deleteForm = document.querySelector('#delete-form');
   const targetField = document.querySelector('#target-field-name');
 
-  const callback = (event) => {
-    deleteForm.action = btn.dataset.url;
-    targetField.textContent = btn.dataset.targetname;
+  const callback = (event, element) => {
+    deleteForm.action = element.dataset.url;
+    targetField.textContent = element.dataset.targetname;
     const modal = new bootstrap.Modal('#delete-modal');
     modal.show();
   };
 
   for (const btn of deleteAssistantBtns) {
-    btn.addEventListener('click', callback);
+    btn.addEventListener('click', (event) => callback(event, btn));
   }
   for (const btn of deleteDocFileBtns) {
-    btn.addEventListener('click', callback);
+    const parent = btn.parentNode;
+    btn.addEventListener('click', (event) => callback(event, parent));
   }
 })();
 </script>

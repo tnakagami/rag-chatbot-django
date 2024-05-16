@@ -22,8 +22,14 @@ urlpatterns = [
   # Assistant
   path('create/assistant', views.AssistantCreateView.as_view(), name='create_assistant'),
   path('update/assistant/<int:pk>', views.AssistantUpdateView.as_view(), name='update_assistant'),
+  path('detail/assistant/<int:pk>', views.AssistantDetailView.as_view(), name='detail_assistant'),
   path('delete/assistant/<int:pk>', views.AssistantDeleteView.as_view(), name='delete_assistant'),
   # DocumentFile
   path('create/docfile/<int:assistant_pk>', views.DocumentFileCreateView.as_view(), name='create_docfile'),
   path('delete/docfile/<int:pk>', views.DocumentFileDeleteView.as_view(), name='delete_docfile'),
+  # Thread
+  path('create/thread/<int:assistant_pk>', views.ThreadCreateView.as_view(), name='create_thread'),
+  path('update/thread/<int:pk>', views.ThreadUpdateView.as_view(), name='update_thread'),
+  path('detail/thread/<int:pk>', views.ThreadDetailView.as_view(), name='detail_thread'),
+  path('delete/thread/<int:pk>', views.ThreadDeleteView.as_view(), name='delete_thread'),
 ]

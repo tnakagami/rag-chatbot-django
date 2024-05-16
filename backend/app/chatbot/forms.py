@@ -177,6 +177,7 @@ class AssistantForm(_BaseModelForm):
     fields = ('name', 'system_message', 'agent', 'embedding', 'tools', 'is_interrupt')
     widgets = {
       'system_message': forms.Textarea(),
+      'tools': forms.SelectMultiple(attrs={'class': 'h-auto overflow-auto'})
     }
 
   is_interrupt = forms.TypedChoiceField(
@@ -240,8 +241,38 @@ class DocumentFileForm(forms.Form):
     super().__init__(*args, **kwargs)
     self.assistant = assistant
 
-  def acreate_document_files(self):
+  def create_document_files(self):
     doc_files = self.cleaned_data['upload_files']
     ids = models.DocumentFile.from_files(self.assistant, doc_files)
 
     return ids
+
+# ==========
+# = Thread =
+# ==========
+class ThreadForm(forms.ModelForm):
+  template_name = 'renderer/custom_model_form.html'
+
+  class Meta:
+    model = models.Thread
+    fields = ('name', 'docfiles')
+    widgets = {
+      'docfiles': forms.SelectMultiple(attrs={'class': 'h-auto overflow-auto'})
+    }
+
+  def __init__(self, assistant, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.assistant = assistant
+
+    for field in self.fields.values():
+      _classes = field.widget.attrs.get('class', '')
+      field.widget.attrs['class'] = f'{_classes} form-control'
+      field.widget.attrs['placeholder'] = field.help_text
+
+  def save(self, *args, **kwargs):
+    instance = super().save(commit=False)
+    instance.assistant = self.assistant
+    instance.save()
+    self.save_m2m()
+
+    return instance

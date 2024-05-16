@@ -19,33 +19,28 @@ HANDLERS = {
 }
 
 class IngestBlobRunnable(RunnableSerializable[BinaryIO, List[str]]):
-  def __init__(
-    self,
-    store: CustomVectorStore,
-    assistant_id: int,
-    batch_size: int = 128,
-    text_splitter: Optional[TextSplitter] = None,
-    parser: Optional[BaseBlobParser] = None,
-  ):
-    self.store = store,
-    self.id = assistant_id
-    self.batch_size = batch_size
-    self.splitter = text_splitter or RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    self.parser = parser or MimeTypeBasedParser(handlers=HANDLERS, fallback_parser=None)
+  store: CustomVectorStore
+  record_id: int
+  batch_size: int = 128
+  splitter: Optional[TextSplitter] = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+  parser: Optional[BaseBlobParser] = MimeTypeBasedParser(handlers=HANDLERS, fallback_parser=None)
+
+  class Config:
+    arbitrary_types_allowed = True
 
   def invoke(self, blob: Blob, config: Optional[RunnableConfig] = None, **kwargs: Any) -> List[str]:
     docs2index = []
     ids = []
-    kwargs.update({'assistant_id': self.id})
-  
+    kwargs.update({'assistant_id': self.record_id})
+
     for document in self.parser.lazy_parse(blob):
       docs = self.splitter.split_documents([document])
-  
+
       for doc in docs:
         doc.page_content = doc.page_content.replace('\x00', 'x')
       docs2index.extend(docs)
 
-      if len(docs2index) >= batch_size:
+      if len(docs2index) >= self.batch_size:
         ids.extend(self.store.add_documents(docs2index, **kwargs))
         docs2index = []
 
@@ -54,22 +49,21 @@ class IngestBlobRunnable(RunnableSerializable[BinaryIO, List[str]]):
 
     return ids
 
-  def convert_input2blob(field: Any):
+  def convert_input2blob(self, field: Any, max_len: int = 1024) -> Blob:
     data = field.read()
-    name = field.name
-    filepath = field.path
-    mimetype = self._guess_mimetype(name, data)
+    filename = field.name
+    mimetype = self._guess_mimetype(filename, data, max_len=max_len)
     blob = Blob.from_data(
       data=data,
-      path=filepath,
+      path=filename,
       mime_type=mimetype,
     )
 
     return blob
 
-  def _guess_mimetype(name: str, data: bytes) -> str:
+  def _guess_mimetype(self, name: str, data: bytes, max_len: int = 1024) -> str:
     mime_type, _ = mimetypes.guess_type(name)
-  
+
     if mime_type:
       out = mime_type
     else:
@@ -83,7 +77,11 @@ class IngestBlobRunnable(RunnableSerializable[BinaryIO, List[str]]):
         out = 'application/vnd.ms-excel'
       else:
         try:
-          decoded = data[:1024].decode('utf-8', errors='ignore')
+          length = len(data)
+
+          if length > max_len:
+            length = max_len
+          decoded = data[:length].decode('utf-8', errors='ignore')
 
           if all(char in decoded for char in (',', '\n')) or all(char in decoded for char in ('\t', '\n')):
             out = 'text/csv'

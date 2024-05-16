@@ -82,6 +82,9 @@ class Agent(BaseConfig):
 
     return f'{self.name} ({agent_type})'
 
+  def is_owner(self, user):
+    return self.user.pk == user.pk
+
   def get_shortname(self):
     return super().get_shortname(str(self))
 
@@ -122,15 +125,17 @@ class Embedding(BaseConfig):
   )
   emb_type = models.IntegerField(
     gettext_lazy('Embedding type'),
-    choices=AgentType.get_embedding_choices(),
+    choices=AgentType.embedding_choices,
     default=AgentType.OPENAI,
-    validators=[AgentType.get_embedding_validator()],
   )
 
   def __str__(self):
     emb_type = AgentType(self.emb_type)
 
     return f'{self.name} ({emb_type})'
+
+  def is_owner(self, user):
+    return self.user.pk == user.pk
 
   def get_shortname(self):
     return super().get_shortname(str(self))
@@ -164,6 +169,9 @@ class Tool(BaseConfig):
     tool_type = ToolType(self.tool_type)
 
     return f'{self.name} ({tool_type})'
+
+  def is_owner(self, user):
+    return self.user.pk == user.pk
 
   def get_shortname(self):
     return super().get_shortname(str(self))
@@ -232,11 +240,18 @@ class Assistant(models.Model):
   def __str__(self):
     return f'{self.name}'
 
-  def get_assistant(self):
+  def is_owner(self, user):
+    return self.user.pk == user.pk
+
+  def get_assistant(self, docfile_ids=None):
+    if docfile_ids is None or not isinstance(docfile_ids, list):
+      docfile_ids = []
+
     tool_args = ToolArgs(
       assistant_id=self.pk,
       manager=EmbeddingStore.objects,
       embedding=self.embedding,
+      docfile_ids=docfile_ids,
     )
     tools = []
     # Collect each tool instance
@@ -282,6 +297,9 @@ class DocumentFile(models.Model):
   def __str__(self):
     return f'{self.name} ({self.assistant})'
 
+  def is_owner(self, user):
+    return self.assistant.is_owner(user)
+
   @staticmethod
   def get_valid_extensions():
     return ['.pdf', '.txt', '.html', '.docx']
@@ -289,11 +307,11 @@ class DocumentFile(models.Model):
   @classmethod
   def from_files(cls, assistant, filefields):
     store = CustomVectorStore(
-      manager=EmbeddingStoreManager.objects,
+      manager=EmbeddingStore.objects,
       strategy=assistant.embedding.get_distance_strategy(),
-      embeddings=assistant.embedding.get_embedding(),
+      embedding_function=assistant.embedding.get_embedding(),
     )
-    runnable = IngestBlobRunnable(store=store, assistant_id=assistant.pk)
+    runnable = IngestBlobRunnable(store=store, record_id=assistant.pk)
     ids = []
 
     for field in filefields:
@@ -308,6 +326,7 @@ class DocumentFile(models.Model):
         ids.extend(current_ids)
       except Exception as ex:
         g_logger.warn(f'DocumentFile[from_files]{ex}')
+        instance.delete()
 
     return ids
 
@@ -336,6 +355,9 @@ class Thread(models.Model):
   def __str__(self):
     return f'{self.name} ({self.assistant})'
 
+  def is_owner(self, user):
+    return self.assistant.is_owner(user)
+
 class EmbeddingStoreQuerySet(models.QuerySet):
   def similarity_search_with_distance_by_vector(self, embedded_query, distance_strategy, **kwargs):
     # In the case of L2Distance:
@@ -354,7 +376,7 @@ class EmbeddingStoreQuerySet(models.QuerySet):
     docfile_ids = kwargs.get('docfile_ids', None)
 
     if assistant_id is not None:
-      if docfile_ids is None or not isinstance(docfile_ids, list):
+      if docfile_ids is None or not isinstance(docfile_ids, list) or len(docfile_ids) == 0:
         params = {'assistant__pk': assistant_id}
       else:
         params = {'assistant__pk': assistant_id, 'docfile__pk__in': docfile_ids}

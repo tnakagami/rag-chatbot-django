@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Union, Any
+from typing import Optional, List, Dict, Union, Any
 from dataclasses import dataclass, make_dataclass, field
 from langchain.pydantic_v1 import BaseModel, Field
 from langchain.tools.retriever import create_retriever_tool
@@ -32,6 +32,7 @@ class _RetrievalConfig:
   manager: DjangoManager
   strategy: DistanceStrategy
   embeddings: Embeddings
+  docfile_ids: List[int] = field(default_factory=list)
   search_kwargs: Union[Dict[str, Any], LocalField] = field(default_factory=dict)
 
   def __post_init__(self) -> None:
@@ -108,7 +109,10 @@ class RetrievalTool(_BaseTool):
 
   def get_tools(self) -> Tool:
     kwargs = self.config.search_kwargs.asdict()
-    kwargs.update({'assistant_id': self.config.assistant_id})
+    kwargs.update({
+      'assistant_id': self.config.assistant_id,
+      'docfile_ids': self.config.docfile_ids,
+    })
     vectorstore = CustomVectorStore(
       manager=self.config.manager,
       strategy=self.config.strategy,

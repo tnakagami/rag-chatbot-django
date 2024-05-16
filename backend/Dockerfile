@@ -18,8 +18,9 @@ RUN    apt-get update \
     && addgroup --gid ${GID} ${USERNAME} \
     && adduser --home /opt/home --shell /bin/bash --uid ${UID} --gid ${GID} --disabled-password ${USERNAME} \
     && pip install poetry \
+    && mkdir -p /data \
     && mkdir -p ${SRC_ROOT_PATH} \
-    && chown -R ${USERNAME}:${USERNAME} /opt/home \
+    && chown -R ${USERNAME}:${USERNAME} /opt/home /data \
     && rm -rf /var/lib/apt/lists/*
 
 COPY ./pyproject.toml /opt/pyproject.toml

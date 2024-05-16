@@ -1,4 +1,5 @@
 import pytest
+from chatbot.models.utils.ingest import IngestBlobRunnable
 from chatbot.models.agents import AgentArgs, ToolArgs, AgentType, ToolType
 from chatbot.models.rag import (
   BaseConfig,
@@ -6,6 +7,7 @@ from chatbot.models.rag import (
   Embedding,
   Tool,
   Assistant,
+  DocumentFile,
   Thread,
   EmbeddingStore,
   LangGraphCheckpoint,
@@ -15,7 +17,10 @@ import numpy as np
 import chatbot.models.utils.llms as llms
 import chatbot.models.utils.executors as executors
 import chatbot.models.utils.tools as tools
-from chatbot.models.utils.vectorstore import DistanceStrategy
+from langchain_community.document_loaders import Blob
+from chatbot.models.utils.vectorstore import DistanceStrategy, CustomVectorStore
+from django.db import NotSupportedError
+from django.core.files.uploadedfile import SimpleUploadedFile, TemporaryUploadedFile
 from django.core.exceptions import ValidationError
 from django.utils.timezone import make_aware
 from datetime import datetime
@@ -161,6 +166,20 @@ def test_check_tooltype(mocker, tool_type, tool_name, dummy_class):
   (ToolType.TAVILY_ANSWER, tools.TavilyAnswerTool),
   (ToolType.YOU_SEARCH, tools.YouSearchTool),
   (ToolType.WIKIPEDIA, tools.WikipediaTool),
+], ids=[
+  'retrieval-tool',
+  'action-server-tool',
+  'arxiv-tool',
+  'connery-tool',
+  'dall-e-tool',
+  'ddg-search-tool',
+  'sec-filings-tool',
+  'press-releases-tool',
+  'pubmed-tool',
+  'tavily-search-tool',
+  'tavily-answer-tool',
+  'you-search-tool',
+  'wikipedia-tool',
 ])
 def test_check_property_of_tooltype(tool_type, expeceted_tool):
   tool_id = tool_type.value
@@ -245,6 +264,14 @@ def test_check_agenttype(mocker, agent_type, agent_name, app_prefix, dummy_llm_t
   (AgentType.FIREWORKS, llms.FireworksLLM, executors.ToolExecutor),
   (AgentType.OLLAMA, llms.OllamaLLM, executors.ToolExecutor),
   (AgentType.GEMINI, llms.GeminiLLM, executors.ToolExecutor),
+], ids=[
+  'openai-llm',
+  'azure-openai-llm',
+  'anthropic-llm',
+  'bedrock-llm',
+  'fireworks-llm',
+  'ollama-llm',
+  'gemini-llm',
 ])
 def test_check_property_of_agenttype(agent_type, expeceted_llm, expeceted_executor):
   agent_id = agent_type.value
@@ -256,15 +283,185 @@ def test_check_property_of_agenttype(agent_type, expeceted_llm, expeceted_execut
 @pytest.mark.chatbot
 @pytest.mark.model
 def test_check_specific_method_of_agenttype():
-  choices = AgentType.get_embedding_choices()
-  validator = AgentType.get_embedding_validator()
-  value = AgentType.OPENAI.value
+  choices = AgentType.embedding_choices
 
   assert AgentType.ANTHROPIC not in choices
-  assert value == validator(value)
-  with pytest.raises(ValidationError) as ex:
-    validator(AgentType.ANTHROPIC.value)
-  assert 'invalid AgentType' in str(ex.value)
+
+# ==========
+# = Ingest =
+# ==========
+@pytest.mark.chatbot
+@pytest.mark.model
+def test_check_convert_input2blob_of_ingest_class(mocker):
+  mocker.patch('chatbot.models.utils.ingest.IngestBlobRunnable._guess_mimetype', return_value='text/plain')
+  file_field = SimpleUploadedFile(
+    'test-file.txt',
+    b'This is a sample file',
+  )
+  runnable = IngestBlobRunnable(store=CustomVectorStore(None, None, None), record_id=0)
+  blob = runnable.convert_input2blob(file_field)
+  out = blob.as_string()
+
+  assert out == 'This is a sample file'
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.parametrize('bytedata,expected_mimetype', [
+  (b'%PDF-2.0%%EOF', 'application/pdf'),
+  (b'\x50\x4B\x03\x04\x20\x58\x4d\x4c', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+  (b'\x50\x4B\x05\x06\x4f\x50\x45\x4e', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+  (b'\x50\x4B\x07\x08\x20\x44\x4f\x43', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+  (b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x20\x57\x6f\x72\x64', 'application/msword'),
+  (b'\x09\x00\xff\x00\x06\x00\x20\x45\x78\x63\x65\x6c', 'application/vnd.ms-excel'),
+  (b'\x61\x2c\x62\x2c\x63\x0a\x78\x2c\x79\x2c\x7a', 'text/csv'),
+  (b'\x61\x09\x62\x09\x63\x0a\x78\x09\x79\x09\x7a', 'text/csv'),
+  (b'This is a sample text', 'text/plain'),
+  ( ('a'*1024).encode(), 'text/plain'),
+  ( ('b'*1025).encode(), 'text/plain'),
+], ids=[
+  'is-pdf',
+  'is-openxml',
+  'is-openoffice',
+  'is-wordpress',
+  'is-word',
+  'is-excel',
+  'is-csv-comma',
+  'is-csv-tab',
+  'is-plain-text-simple',
+  'is-plain-text-length-1024',
+  'is-plain-text-length-1025',
+])
+def test_check_guess_mimetype_method_of_ingest_class(mocker, bytedata, expected_mimetype):
+  no_name = ''
+  mocker.patch('chatbot.models.utils.ingest.mimetypes.guess_type', return_value=(False, ''))
+  runnable = IngestBlobRunnable(store=CustomVectorStore(None, None, None), record_id=0)
+  mime_type = runnable._guess_mimetype(no_name, bytedata)
+
+  assert mime_type == expected_mimetype
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.parametrize('is_printable,is_eq,expected', [
+  (True, False , 'text/plain'),
+  (False, True, 'text/plain'),
+  (False, False, 'application/octet-stream'),
+], ids=['is-printable', 'decoded-value-is-empty', 'is-streaming-data'])
+def test_check_customized_pattern_of_ingest_class(mocker, is_printable, is_eq, expected):
+  class PseudoBytes:
+    def __init__(self, val, is_printable, is_eq, *args, **kwargs):
+      self._data = val
+      self._printable = is_printable
+      self._eq = is_eq
+
+    def __eq__(self, other):
+      return self._eq
+
+    def __len__(self):
+      return len(self._data)
+
+    def __getitem__(self, key):
+      return PseudoBytes(self._data[key], self._printable, self._eq)
+
+    def __contains__(self, item):
+      return False
+
+    def decode(self, *args, **kwargs):
+      return PseudoBytes(self._data, self._printable, self._eq)
+
+    def isprintable(self):
+      return self._printable
+
+    def startswith(self, *args, **kwargs):
+      return self._data.encode().startswith(*args, **kwargs)
+
+  bytedata = PseudoBytes('sample', is_printable, is_eq)
+  runnable = IngestBlobRunnable(store=CustomVectorStore(None, None, None), record_id=0)
+  mime_type = runnable._guess_mimetype('', bytedata)
+
+  assert mime_type == expected
+
+@pytest.mark.chatbot
+@pytest.mark.model
+def test_check_specific_pattern_of_ingest_class():
+  class CannotDecodeData:
+    def __init__(self, val, *args, **kwargs):
+      self._byte_val = val
+
+    def __len__(self):
+      return len(self._byte_val)
+
+    def __getitem__(self, key):
+      return CannotDecodeData(self._byte_val[key])
+
+    def decode(self, *args, **kwargs):
+      raise UnicodeDecodeError('utf-8', b'dummy-data', 0, 1, 'error')
+
+    def startswith(self, *args, **kwargs):
+      return self._byte_val.startswith(*args, **kwargs)
+
+  runnable = IngestBlobRunnable(store=CustomVectorStore(None, None, None), record_id=0)
+  # In the case of the UnicodeDecodeError is raised
+  out = runnable._guess_mimetype('no-name', CannotDecodeData(b'sample'))
+
+  assert out == 'application/octet-stream'
+
+@pytest.mark.chatbot
+@pytest.mark.model
+def test_check_be_able_to_estimate_mimetypes_of_ingest_class(mocker):
+  runnable = IngestBlobRunnable(store=CustomVectorStore(None, None, None), record_id=0)
+  # In the case of being able to estimate mimetype
+  mocker.patch('chatbot.models.utils.ingest.mimetypes.guess_type', return_value=('text/plain', ''))
+  out = runnable._guess_mimetype('no-name', b'This is a dummy data')
+
+  assert out == 'text/plain'
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.parametrize([
+  'packed_num',
+  'batch_size',
+  'expected_call',
+], [
+  (None, 2, 0),
+  ([1], 2, 1),
+  ([2, 1], 2, 2),
+], ids=['split-none', 'split-once', 'split-twice'])
+def test_check_invoke_method_of_ingest_class(mocker, packed_num, batch_size, expected_call):
+  class DummyDoc:
+    def __init__(self, data):
+      self.page_content = data
+
+  if packed_num is None:
+    targets = []
+  else:
+    targets = [[DummyDoc('a') for _ in range(val)] for val in packed_num]
+  store = CustomVectorStore(None, None, None)
+  runnable = IngestBlobRunnable(store=store, record_id=0, batch_size=batch_size)
+  mocker.patch.object(
+    runnable.parser,
+    'lazy_parse',
+    new_callable=mocker.PropertyMock,
+    return_value=[arr[0] for arr in targets],
+  )
+  mocker.patch.object(
+    runnable.splitter,
+    'split_documents',
+    side_effect=targets,
+  )
+  property_mock = mocker.patch.object(
+    store,
+    'add_documents',
+    new_callable=mocker.PropertyMock,
+    return_value=[1],
+  )
+  blob = Blob.from_data(
+    data=b'test',
+    path=None,
+    mime_type='text/plain',
+  )
+  outputs = runnable.invoke(blob)
+
+  assert property_mock.call_count == expected_call
 
 # =======
 # = RAG =
@@ -417,6 +614,9 @@ def test_check_tool(mocker, get_common_data):
   assert rand_val == ret_val
   assert _exists is not None
 
+# =================
+# = Django Models =
+# =================
 @pytest.mark.chatbot
 @pytest.mark.model
 @pytest.mark.django_db
@@ -438,6 +638,24 @@ def test_check_own_items_queryset(model_class, factory_class):
   assert len(qs_2nd_owner) == len(models_2nd_user)
   assert all([pk in ids_1st_models for pk in qs_1st_owner.values_list('pk', flat=True)])
   assert all([pk in ids_2nd_models for pk in qs_2nd_owner.values_list('pk', flat=True)])
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize('handler', [
+  lambda user: factories.AgentFactory(user=user),
+  lambda user: factories.EmbeddingFactory(user=user),
+  lambda user: factories.ToolFactory(user=user),
+  lambda user: factories.AssistantFactory(user=user),
+  lambda user: factories.DocumentFileFactory(factories.AssistantFactory(user=user)),
+  lambda user: factories.ThreadFactory(factories.AssistantFactory(user=user)),
+], ids=['agent-owner', 'embedding-owner', 'tool-owner', 'assistant-owner', 'docfile-owner', 'thread-owner'])
+def test_check_owner(handler):
+  owner, other_user = factories.UserFactory.create_batch(2)
+  own_instance = handler(owner)
+
+  assert own_instance.is_owner(owner)
+  assert not own_instance.is_owner(other_user)
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -465,7 +683,7 @@ def test_check_get_shortname_method(factory_class, kwargs, expected):
 @pytest.mark.chatbot
 @pytest.mark.model
 @pytest.mark.django_db
-@pytest.mark.parametrize('num_tools', [0, 1, 2])
+@pytest.mark.parametrize('num_tools', [0, 1, 2], ids=['no-tools', 'use-only-one-tool', 'use-multi-tools'])
 def test_check_assistant(mocker, num_tools):
   targets = [tools.Tool(name='dummy', func=None, description='test') for _ in range(num_tools)]
   name = 'test'
@@ -498,6 +716,85 @@ def test_check_assistant(mocker, num_tools):
 @pytest.mark.chatbot
 @pytest.mark.model
 @pytest.mark.django_db
+@pytest.mark.parametrize('docfile_ids,expected_size', [
+  (None, 0),
+  (2, 0),
+  ([1,2,3], 3),
+], ids=['no-docfile-ids', 'no-list-of-dcofile-ids', 'docfile-ids-exist'])
+def test_check_get_assistant_method_of_assistant(mocker, docfile_ids, expected_size):
+  mocker.patch(
+    'chatbot.models.rag.Agent.get_executor',
+    new_callable=mocker.PropertyMock,
+    return_value=lambda args, *other, **kwargs: args.tools,
+  )
+  mocker.patch(
+    'chatbot.models.rag.Tool.get_tool',
+    new_callable=mocker.PropertyMock,
+    return_value=lambda args, *other, **kwargs: args.docfile_ids,
+  )
+  _tool_records = factories.ToolFactory()
+  assistant = Assistant.objects.create(
+    user=factories.UserFactory(),
+    agent=factories.AgentFactory(),
+    embedding=factories.EmbeddingFactory(),
+  )
+  assistant.tools.add(_tool_records)
+  ret_items = assistant.get_assistant(docfile_ids=docfile_ids)
+
+  assert len(ret_items) == expected_size
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+def test_check_collection_with_docfiles_method_of_assistant():
+  user = factories.UserFactory()
+  specific_assistant = factories.AssistantFactory.create_batch(
+    2,
+    user=user,
+    agent=factories.AgentFactory(),
+    embedding=factories.EmbeddingFactory(),
+  )
+  assistants = factories.AssistantFactory.create_batch(
+    3,
+    user=factories.UserFactory(),
+    agent=factories.AgentFactory(),
+    embedding=factories.EmbeddingFactory(),
+  )
+  for _assistant in assistants:
+    _ = factories.DocumentFileFactory.create_batch(5, assistant=_assistant)
+
+  only_one_qs = Assistant.objects.collection_with_docfiles(pk=assistants[0].pk)
+  qs_of_specific_user = Assistant.objects.collection_with_docfiles(user=user)
+  all_qs = Assistant.objects.all()
+
+  assert only_one_qs.count() == 1
+  assert qs_of_specific_user.count() == len(specific_assistant)
+  assert all_qs.count() == (len(specific_assistant) + len(assistants))
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+def test_check_docfile():
+  docfile_name = 'test-document-file'
+  assistant_name = 'dummy-assistant'
+  docfile = factories.DocumentFileFactory(
+    assistant=factories.AssistantFactory(name=assistant_name),
+    name=docfile_name,
+  )
+
+  assert str(docfile) == f'{docfile_name} ({assistant_name})'
+
+@pytest.mark.chatbot
+@pytest.mark.model
+def test_check_valid_extensions():
+  valid_extensions = DocumentFile.get_valid_extensions()
+  expected = ['.pdf', '.txt', '.html', '.docx']
+
+  assert all([target in valid_extensions for target in expected])
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
 def test_check_thread():
   thread_name = 'test-thread'
   assistant_name = 'dummy-assistant'
@@ -518,13 +815,43 @@ def test_check_str_method_of_embedding_store():
     user=factories.UserFactory(screen_name=screen_name),
     name=assistant_name,
   )
+  docfile = factories.DocumentFileFactory(assistant=assistant)
   store = EmbeddingStore.objects.create(
-    assistant_id=assistant.pk,
     embedding=[1,2,3],
     document='sample-text',
+    assistant_id=assistant.pk,
+    docfile_id=docfile.pk,
   )
 
   assert str(store) == f'{assistant_name} ({screen_name})'
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize('set_assistant,set_docfile',[
+  (False, True),
+  (True, False),
+  (False, False),
+], ids=['not-set-assistant', 'not-set-document-file', 'not-set-model-ids'])
+def test_check_invalid_args_for_create_method_of_embedding_store(set_assistant, set_docfile):
+  if set_assistant:
+    assistant = factories.AssistantFactory()
+    assistant_id = assistant.pk
+  else:
+    assistant_id = None
+  if set_docfile:
+    docfile = factories.DocumentFileFactory(assistant=factories.AssistantFactory())
+    docfile_id = docfile.pk
+  else:
+    docfile_id = None
+
+  with pytest.raises(NotSupportedError):
+    _ = EmbeddingStore.objects.create(
+      embedding=[1,2,3],
+      document='sample-text',
+      assistant_id=assistant_id,
+      docfile_id=docfile_id,
+    )
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -541,9 +868,10 @@ def test_check_similarity_search_method(get_normalizer, distance_strategy, calc_
   scales = np.array([-2.001, 1.881, 0.999, 0.301, -1.732, 0.123])
   embedding_vectors = normalizer(np.power(exact_vector[:, np.newaxis], scales))
   assistant = factories.AssistantFactory()
+  docfile = factories.DocumentFileFactory(assistant=assistant)
   # Create embedding stores
   stores = [
-    factories.EmbeddingStoreFactory(assistant=assistant, embedding=target_vector, ndim=ndim)
+    factories.EmbeddingStoreFactory(assistant=assistant, docfile=docfile, embedding=target_vector, ndim=ndim)
     for target_vector in embedding_vectors.T
   ]
   ids = np.array([store.pk for store in stores])
@@ -571,6 +899,93 @@ def test_check_no_assistant_id_of_similarity_search_method(distance_strategy):
   queryset = EmbeddingStore.objects.similarity_search_with_distance_by_vector([1,2,3], distance_strategy)
 
   assert isinstance(queryset, type(empty_query))
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize('max_files,selected_num,expected_records',[
+  (4, 0, 12),
+  (4, 1, 3),
+  (4, 2, 6),
+  (4, 3, 9),
+  (4, 4, 12),
+], ids=['set-no-docfiles', 'set-one-docfile', 'set-two-docfiles', 'set-three-docfiles', 'set-all-docfiles'])
+def test_check_similarity_search_method_with_docfile_ids(get_normalizer, max_files, selected_num, expected_records):
+  normalizer = get_normalizer
+  distance_strategy = DistanceStrategy.COSINE
+  assistant = factories.AssistantFactory()
+  docfiles = factories.DocumentFileFactory.create_batch(max_files, assistant=assistant)
+  ndim = 5
+  exact_vector = normalizer(np.linspace(0.1, 9.1, ndim))
+  scales = np.array([0.9997, 0.9999, 1.0001])
+  embedding_vectors = normalizer(np.power(exact_vector[:, np.newaxis], scales))
+  # Create embedding stores
+  for docfile in docfiles:
+    for target_vector in embedding_vectors.T:
+      factories.EmbeddingStoreFactory(assistant=assistant, docfile=docfile, embedding=target_vector, ndim=ndim)
+  # Create embedding store of another assistant
+  another_assistant = factories.AssistantFactory()
+  factories.EmbeddingStoreFactory(
+    assistant=another_assistant,
+    docfile=factories.DocumentFileFactory(assistant=another_assistant),
+    embedding=exact_vector,
+    ndim=ndim
+  )
+  # Create target ids of document file
+  docfile_ids = [docfile.pk for docfile in docfiles[:selected_num]]
+  # Search similer document
+  queryset = EmbeddingStore.objects.similarity_search_with_distance_by_vector(
+    exact_vector,
+    distance_strategy,
+    assistant_id=assistant.pk,
+    docfile_ids=docfile_ids,
+  )
+
+  assert queryset.count() == expected_records
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize('is_raise,expected', [
+  (False, 2),
+  (True, 0),
+], ids=['not-raise-exception', 'raise-exception'])
+def test_check_from_files_method_of_document_file(mocker, is_raise, expected):
+  class DummyIngest:
+    def __init__(self, *args, **kwargs):
+      pass
+    def convert_input2blob(self, *args, **kwargs):
+      return object()
+    def invoke(self, *args, **kwargs):
+      if is_raise:
+        raise Exception('error')
+
+      return [1]
+
+  mocker.patch('chatbot.models.rag.IngestBlobRunnable', new=DummyIngest)
+  config = {
+    'model': 'sample',
+    'temperature': 0,
+    'stream': True,
+    'max_retries': 3,
+    'api_key': 'open-ai-key',
+    'endpoint': 'http://dummy-open-ai/endpoint',
+  }
+  assistant = factories.AssistantFactory(
+    embedding=factories.EmbeddingFactory(
+      config=config,
+      emb_type=AgentType.OPENAI,
+    )
+  )
+  files = [
+    SimpleUploadedFile('sample1.txt', b'This is a sample text.'),
+    SimpleUploadedFile('sample2.pdf', b'%PDF%%EOF'),
+  ]
+  out = DocumentFile.from_files(assistant, files)
+  queryset = DocumentFile.objects.all()
+
+  assert len(out) == expected
+  assert queryset.count() == expected
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -688,7 +1103,7 @@ def test_langgraph_checkpoint_invalid_patterns(shift_size_of_thread_id, checkpoi
   (None, 2),
   (1950, 1),
   (1900, 0),
-])
+], ids=['match-multi-records', 'match-only-one-record', 'no-records-exists'])
 def test_langgraph_checkpoint_collection(target_year, expected_query_num):
   thread = factories.ThreadFactory()
   timestamp_getter = lambda _year: make_aware(datetime(_year, 2, 2, 2, 2, 2))

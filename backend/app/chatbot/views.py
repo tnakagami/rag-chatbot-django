@@ -1,8 +1,8 @@
 from django.utils.translation import gettext_lazy
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse
-from django.shortcuts import render
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.utils.functional import cached_property
 from django.views.generic import (
   View,
   TemplateView,
@@ -38,10 +38,10 @@ class JsonResponseMixin:
 
 class IsOwner(UserPassesTestMixin):
   def test_func(self):
+    user = self.request.user
     instance = self.get_object()
-    is_valid = instance.user.pk == self.request.user.pk
 
-    return is_valid
+    return instance.is_owner(user)
 
 class _BaseCreateUpdateView(LoginRequiredMixin):
   raise_exception = True
@@ -72,6 +72,7 @@ class _CommonCreateUpdateWithConfigView(_BaseCreateUpdateView):
 
 class _CommonConfigCollection(JsonResponseMixin, View):
   config_form_class = None
+  http_method_names = ['get']
 
   def get_context_data(self, *args, **kwargs):
     params = {}
@@ -91,10 +92,7 @@ class _CommonDeleteView(LoginRequiredMixin, IsOwner, DeleteView):
   raise_exception = True
   model = None
   success_url = None
-
-  def get(self, request, *args, **kwargs):
-    # Ignore direct access
-    return self.handle_no_permission()
+  http_method_names = ['post']
 
 class Index(LoginRequiredMixin, ListBreadcrumbMixin, ListView):
   model = models.Assistant
@@ -216,6 +214,16 @@ class AssistantUpdateView(_BaseCreateUpdateView, IsOwner, UpdateBreadcrumbMixin,
   ]
   success_url = reverse_lazy('chatbot:index')
 
+class AssistantDetailView(LoginRequiredMixin, IsOwner, DetailBreadcrumbMixin, DetailView):
+  raise_exception = True
+  model = models.Assistant
+  template_name = 'chatbot/target_assistant.html'
+  context_object_name = 'assistant'
+  crumbs = [
+    (gettext_lazy('Chatbot'), reverse_lazy('chatbot:index')),
+    (gettext_lazy('Assistant'), ''),
+  ]
+
 class AssistantDeleteView(_CommonDeleteView):
   model = models.Assistant
   success_url = reverse_lazy('chatbot:index')
@@ -223,7 +231,7 @@ class AssistantDeleteView(_CommonDeleteView):
 # ================
 # = DocumentFile =
 # ================
-class DocumentFileCreateView(IsOwner, BaseBreadcrumbMixin, FormView):
+class DocumentFileCreateView(LoginRequiredMixin, IsOwner, BaseBreadcrumbMixin, FormView):
   raise_exception = True
   form_class = forms.DocumentFileForm
   template_name = 'chatbot/document_file_form.html'
@@ -253,3 +261,90 @@ class DocumentFileCreateView(IsOwner, BaseBreadcrumbMixin, FormView):
 class DocumentFileDeleteView(_CommonDeleteView):
   model = models.DocumentFile
   success_url = reverse_lazy('chatbot:index')
+
+# ==========
+# = Thread =
+# ==========
+class _ThreadCreateUpdateView(LoginRequiredMixin, IsOwner):
+  raise_exception = True
+  model = models.Thread
+  form_class = forms.ThreadForm
+  template_name = 'chatbot/thread_form.html'
+
+  @cached_property
+  def crumbs(self):
+    return [
+    (gettext_lazy('Chatbot'), reverse('chatbot:index')),
+    (gettext_lazy('Assistant'), self.get_success_url()),
+    (gettext_lazy('Create thread'), ''),
+  ]
+
+  def get_form_kwargs(self, *args, **kwargs):
+    kwargs = super().get_form_kwargs(*args, **kwargs)
+    kwargs['assistant'] = self.get_assistant()
+
+    return kwargs
+
+  def get_context_data(self, *args, **kwargs):
+    context = super().get_context_data(*args, **kwargs)
+    context['assistant'] = self.get_assistant()
+
+    return context
+
+  def get_success_url(self):
+    return reverse('chatbot:detail_assistant', kwargs={'pk': self.get_pk()})
+
+class ThreadCreateView(_ThreadCreateUpdateView, CreateBreadcrumbMixin, CreateView):
+  def get_pk(self):
+    return self.kwargs.get('assistant_pk')
+
+  def get_object(self):
+    return self.get_assistant()
+
+  def get_assistant(self):
+    pk = self.get_pk()
+    assistant = models.Assistant.objects.get_or_none(pk=pk)
+
+    return assistant
+
+class ThreadUpdateView(_ThreadCreateUpdateView, UpdateBreadcrumbMixin, UpdateView):
+  def get_pk(self):
+    thread = self.get_object()
+    pk = thread.assistant.pk
+
+    return pk
+
+  def get_assistant(self):
+    thread = self.get_object()
+    assistant = thread.assistant
+
+    return assistant
+
+class ThreadDetailView(LoginRequiredMixin, IsOwner, DetailBreadcrumbMixin, DetailView):
+  raise_exception = True
+  model = models.Thread
+  template_name = 'chatbot/target_thread.html'
+  context_object_name = 'thread'
+
+  def _get_parent_link(self):
+    thread = self.get_object()
+    pk = thread.assistant.pk
+
+    return reverse('chatbot:detail_assistant', kwargs={'pk': pk})
+
+  @cached_property
+  def crumbs(self):
+    return [
+    (gettext_lazy('Chatbot'), reverse('chatbot:index')),
+    (gettext_lazy('Assistant'), self._get_parent_link()),
+    (gettext_lazy('Thread'), ''),
+  ]
+
+class ThreadDeleteView(_CommonDeleteView):
+  model = models.Thread
+  context_object_name = 'thread'
+
+  def get_success_url(self):
+    pk = self.object.assistant.pk
+
+    return reverse('chatbot:detail_assistant', kwargs={'pk': pk})

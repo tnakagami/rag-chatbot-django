@@ -1,4 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import (
+  dataclass,
+  field as dc_field,
+)
 from typing import Dict, Tuple, List, Union, Any
 from collections.abc import Callable
 from functools import wraps
@@ -72,6 +75,13 @@ class ToolArgs:
   assistant_id: int
   manager: DjangoManager
   embedding: Any
+  docfile_ids: List[int] = dc_field(default_factory=list)
+
+class classproperty:
+  def __init__(self, fget):
+    self.fget = fget
+  def __get__(self, instance, owner):
+    return self.fget(owner)
 
 class AgentType(models.IntegerChoices):
   OPENAI    = 1, gettext_lazy('Open AI')
@@ -84,6 +94,15 @@ class AgentType(models.IntegerChoices):
 
   def __str__(self) -> str:
     return f'{self.label}'
+
+  @classproperty
+  def embedding_choices(cls) -> List[Tuple[int, str]]:
+    # Filtering choices
+    _invalids = [cls.ANTHROPIC]
+    invalid_vals = [member.value for member in _invalids]
+    _choices = [(value, label) for value, label in cls.choices if value not in invalid_vals]
+
+    return _choices
 
   @property
   def _llm_type(self) -> VALID_LLMS:
@@ -114,36 +133,6 @@ class AgentType(models.IntegerChoices):
     }
 
     return lookup[self]
-
-  @staticmethod
-  def get_embedding_choices() -> tuple[int, str]:
-    # Filtering choices
-    _invalids = [AgentType.ANTHROPIC]
-    invalid_vals = [member.value for member in _invalids]
-    _choices = [(value, label) for value, label in AgentType.choices if value not in invalid_vals]
-
-    return _choices
-
-  @staticmethod
-  def get_embedding_validator() -> Callable[[int], int]:
-    valids = [value for value, _ in AgentType.get_embedding_choices()]
-    invalids = [(value, label) for value, label in AgentType.choices if value not in valids]
-
-    @wraps(AgentType.get_embedding_validator)
-    def validator(value):
-      matched = [(item, label) for item, label in invalids if item == value]
-
-      if len(matched) > 0:
-        _, label = matched[0]
-
-        raise ValidationError(
-          gettext_lazy(f'{label} is the invalid AgentType'),
-          params={'value': value}
-        )
-
-      return value
-
-    return validator
 
   @classmethod
   def get_llm_fields(cls, agent_id: int, config: Dict, is_embedded: bool = False) -> List[LocalField]:
@@ -233,6 +222,7 @@ class ToolType(models.IntegerChoices):
         'manager': None,
         'strategy': None,
         'embeddings': None,
+        'docfile_ids': [],
         'search_kwargs': config,
       }
       instance = _self._tool_type(retriever_config)
@@ -257,6 +247,7 @@ class ToolType(models.IntegerChoices):
         'manager': args.manager,
         'strategy': args.embedding.get_distance_strategy(),
         'embeddings': args.embedding.get_embedding(),
+        'docfile_ids': args.docfile_ids,
         'search_kwargs': config,
       }
       instance = _self._tool_type(retriever_config)

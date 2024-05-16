@@ -136,7 +136,7 @@ def mock_call_kay_is_failed(get_kay_retriever_args, mocker):
   (True, False, bool, 'bool data'),
   ([3, 'a'], [], list, 'list data'),
   ({'x': 3}, {}, dict, 'dict data'),
-])
+], ids=['is-int', 'is-str', 'is-bool', 'is-list', 'is-dict'])
 def test_check_valid_field(value, default, data_type, label):
   name = 'test'
   field = _local.LocalField(
@@ -231,6 +231,11 @@ def test_check_data_type():
   ('https://example.com/valid', False, httpx.Client, b'https', b'example.com', None, b'/valid'),
   ('http://example.co.jp:23456/ok', True, httpx.AsyncClient, b'http', b'example.co.jp', 23456, b'/ok'),
   ('https://example.co.jp', True, httpx.AsyncClient, b'https', b'example.co.jp', None, b'/'),
+], ids=[
+  'with-port-no-target-in-sync-client',
+  'without-port-set-target-in-sync-client',
+  'with-port-set-target-in-async-client',
+  'without-port-no-target-in-async-client',
 ])
 def test_check_valid_client(
   client_proxy_checker,
@@ -288,7 +293,13 @@ def test_check_invalid_client(proxy, is_async):
 
 @pytest.mark.chatbot
 @pytest.mark.private
-@pytest.mark.parametrize('cls', [_customFireworks.CustomFireworks, _customFireworks.CustomAsyncFireworks])
+@pytest.mark.parametrize('cls', [
+  _customFireworks.CustomFireworks,
+  _customFireworks.CustomAsyncFireworks,
+], ids=[
+  'check-instance-of-custom-fireworks',
+  'check-instance-of-custom-async-fireworks',
+])
 def test_check_class_members_of_custom_fireworks(get_firework_args, cls):
   kwargs = get_firework_args
   instance = cls(**kwargs)
@@ -329,6 +340,9 @@ async def test_enter_and_exit_for_custom_fireworks_async_client(get_firework_arg
 @pytest.mark.parametrize('cls', [
   _customFireworks.CustomFireworks,
   _customFireworks.CustomAsyncFireworks,
+], ids=[
+  'custom-fireworks-without-proxy',
+  'custom-async-fireworks-without-proxy',
 ])
 def test_check_firewarks_input_args_without_proxy(get_firework_args, client_non_proxy_checker, cls):
   kwargs = get_firework_args
@@ -353,6 +367,9 @@ def test_check_firewarks_input_args_without_proxy(get_firework_args, client_non_
 ], [
   (_customFireworks.CustomFireworks, 'http://proxy.com:12345/bar', b'http', b'proxy.com', 12345, b'/bar'),
   (_customFireworks.CustomAsyncFireworks, 'https://proxy.co.jp:23456/foo', b'https', b'proxy.co.jp', 23456, b'/foo'),
+], ids=[
+  'custom-fireworks-with-proxy',
+  'custom-async-fireworks-with-proxy',
 ])
 def test_check_firewarks_input_args_with_proxy(
   get_firework_args,
@@ -429,7 +446,7 @@ def test_check_proxy_of_custom_chat_anthropic(get_chat_anthropic_args, client_pr
   (None, 'api-key', 'http://example.com/base', ValidationError, 'model_name'),
   ('anthropic-model', None, 'http://example.com/base', None, 'api_key'),
   ('anthropic-model', 'api-key', None, None, 'anthropic_api_url'),
-])
+], ids=['invalid-model-name', 'invalid-api-key', 'invalid-base-url'])
 def test_invalid_args_of_custom_chat_anthropic(
   model_name,
   api_key,
@@ -607,6 +624,11 @@ def test_check_call_kay_of_custom_kay_retriever(mock_post_request_of_kay_retriev
   ('bad-request', _customRetriever.ServerError, 'Bad Request for'),
   ('not-auth', _customRetriever.APIKeyError, 'Invalid API Key'),
   ('other-error', _customRetriever.ServerError, 'Server error: 500'),
+], ids=[
+  'not-success-in-kay',
+  'bad-request-in-kay',
+  'not-auth-in-kay',
+  'other-error-in-kay',
 ])
 def test_invalid_call_kay_response_of_custom_kay_retriever(mock_post_request_of_kay_retriever, get_kay_retriever_args, query, raise_class, err):
   _ = mock_post_request_of_kay_retriever
@@ -628,6 +650,9 @@ def test_invalid_call_kay_response_of_custom_kay_retriever(mock_post_request_of_
 ], [
   ('sample', 5, 'ok', {'num_context': 5, 'instruction': 'ok'}),
   ('sample', 5, None, {'num_context': 5}),
+], ids=[
+  'set-cotext-in-call_kay',
+  'not-set-context-in-call_kay',
 ])
 def test_check_call_kay_args_from_query_method_of_custom_kay_retriever(
   get_kay_retriever_args,

@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("Chatbot - Create/Update thread") %}
+<div class="row justify-content-center">
+  <div class="col">
+    <form method="POST" class="p-2">
+      {% csrf_token %}
+
+      {{ form }}
+
+      <div class="mt-1 row row-cols-1 row-cols-md-2 g-2">
+        <div class="col">
+          <button type="submit" class="btn btn-primary w-100 custom-boxshadow-effect">
+            {% trans "Create/Update" %}
+          </button>
+        </div>
+        <div class="col">
+          <a href="{% url 'chatbot:detail_assistant' pk=assistant.pk %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+            {% trans "Cancel" %}
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

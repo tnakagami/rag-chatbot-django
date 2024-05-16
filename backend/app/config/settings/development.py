@@ -17,3 +17,5 @@ DATABASES = {
     },
   },
 }
+
+MEDIA_ROOT = '/data'

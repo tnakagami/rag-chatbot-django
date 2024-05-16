@@ -28,6 +28,7 @@ arxiv = "^2.1.0"
 kay = "^0.1.2"
 wikipedia = "^1.4.0"
 fireworks-ai = "^0.14.0"
+lxml = "^5.2.2"
 xmltodict = "^0.13.0"
 unstructured = { extras = ["doc", "docx"], version = "^0.13.2", optional = true }
 pdfminer-six = "^20231228"
