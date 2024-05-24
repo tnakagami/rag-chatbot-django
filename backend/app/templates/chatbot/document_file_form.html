@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("Chatbot - Create document file") %}
+<div class="row justify-content-center">
+  <div class="col">
+    <div class="row p-2">
+      <div class="col">
+        <div class="border border-2 border-dark-subtle" id="drop-area">
+          <div class="text-center py-2 fs-2">{% trans "Please drop the files here or" %}</div>
+          <div class="px-4 py-2">
+            <input type="file" class="form-control" id="upload-files" multiple>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-1 row row-cols-1 row-cols-md-2 g-2 p-2">
+      <div class="col">
+        <button type="button" id="send" data-url="{{ docfile_url }}" data-redirect="{% url 'chatbot:index' %}"
+          class="btn btn-primary w-100 custom-boxshadow-effect">
+          <span id="is-ready">{% trans "Create" %}</span>
+          <div id="is-sending" class="d-none">
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            {% trans "Sending..." %}
+          </div>
+        </button>
+      </div>
+      <div class="col">
+        <a href="{% url 'chatbot:index' %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+          {% trans "Cancel" %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block bodyjs %}
+<script>
+(function() {
+  const sendBtn = document.querySelector('#send');
+  const dropArea = document.querySelector('#drop-area');
+  const filefield = document.querySelector('#upload-files');
+  const colorLists = ['text-bg-light', 'opacity-25'];
+  const eraseClass = 'd-none';
+
+  // In the case of dragover
+  dropArea.addEventListener('dragover', (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    dropArea.classList.add(...colorLists);
+    filefield.classList.add(...colorLists);
+  }, false);
+  // In the case of dragleave
+  dropArea.addEventListener('dragleave', (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    dropArea.classList.remove(...colorLists);
+    filefield.classList.remove(...colorLists);
+  }, false);
+  // In the case of dropping files
+  dropArea.addEventListener('drop', (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    dropArea.classList.remove(...colorLists);
+    filefield.classList.remove(...colorLists);
+    // Get dropped files
+    filefield.files = event.dataTransfer.files;
+  }, false);
+  // Add click event
+  sendBtn.addEventListener('click', (event) => {
+    event.preventDefault();
+
+    if (filefield.files.length == 0) {
+      return;
+    }
+
+    const url = sendBtn.dataset.url;
+    const redirectUrl = sendBtn.dataset.redirect;
+    const isReadyField = document.querySelector('#is-ready');
+    const isSending = document.querySelector('#is-sending');
+    dropArea.classList.add(...colorLists);
+    filefield.classList.add(...colorLists);
+    filefield.disabled = true;
+    sendBtn.disabled = true;
+    isReadyField.classList.add(eraseClass);
+    isSending.classList.remove(eraseClass);
+    // Create form data
+    const form = new FormData();
+    form.append('assistant_pk', {{ assistant_pk }});
+    form.append('upload_files', Array.from(filefield.files));
+    const csrfToken = "{{ csrf_token }}";
+    // Execute fetch function
+    fetch(url, {
+      method: 'POST',
+      body: form,
+      headers: {'X-CSRFToken': csrfToken},
+    }).then(() => {
+      window.location.href = redirectUrl;
+    }).catch(() => {
+      dropArea.classList.remove(...colorLists);
+      filefield.classList.remove(...colorLists);
+      filefield.disabled = false;
+      sendBtn.disabled = false;
+      isReadyField.classList.remove(eraseClass);
+      isSending.classList.add(eraseClass);
+    });
+  });
+})();
+</script>
+{% endblock %}

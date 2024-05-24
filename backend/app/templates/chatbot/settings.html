@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load bootstrap_icons %}
+
+{% block header %}
+<style>
+  .delete-target-settings:hover {
+    cursor: pointer;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("Chatbot - Settings") %}
+{# contents creation #}
+<div class="row justify-content-center p-2">
+  <div class="col">
+    <div class="row row-cols-1 row-cols-md-3 g-2">
+      <div class="col">
+        <a href="{% url 'chatbot:create_agent' %}" class="btn btn-outline-primary w-100 custom-boxshadow-effect">
+          {% trans "Create agent" %}
+        </a>
+      </div>
+      <div class="col">
+        <a href="{% url 'chatbot:create_embedding' %}" class="btn btn-outline-success w-100 custom-boxshadow-effect">
+          {% trans "Create embedding" %}
+        </a>
+      </div>
+      <div class="col">
+        <a href="{% url 'chatbot:create_tool' %}" class="btn btn-outline-dark w-100 custom-boxshadow-effect">
+          {% trans "Create tool" %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Agent list #}
+<div class="row justify-content-center mt-2 p-2">
+  <div class="col">
+    <div class="row">
+      <div class="col">
+        <p class="h4">{% trans "Agents" %}</p>
+      </div>
+    </div>
+    {% for agent in agents %}
+    <div class="row align-items-center mx-2 border {% if forloop.counter > 1 %}border-top-0{% endif %}">
+      <div class="col-10 border-end">
+        <a href="{% url 'chatbot:update_agent' pk=agent.pk %}"
+           class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover text-break">
+          {{ agent.get_shortname }}
+        </a>
+      </div>
+      <div class="col-2 p-1 text-center" data-targetname="{{ agent.get_shortname }}" data-url="{% url 'chatbot:delete_agent' pk=agent.pk %}">
+        {% bs_icon 'trash' extra_classes='delete-target-settings text-danger' %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="row mx-2">
+      <div class="col">
+        <p>{% trans "No agents exist. Please add your agent above button." %}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# Embedding list #}
+<div class="row justify-content-center mt-2 p-2">
+  <div class="col">
+    <div class="row">
+      <div class="col">
+        <p class="h4">{% trans "Embeddings" %}</p>
+      </div>
+    </div>
+    {% for embedding in embeddings %}
+    <div class="row align-items-center mx-2 border {% if forloop.counter > 1 %}border-top-0{% endif %}">
+      <div class="col-10 border-end">
+        <a href="{% url 'chatbot:update_embedding' pk=embedding.pk %}"
+           class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover text-break">
+          {{ embedding.get_shortname }}
+        </a>
+      </div>
+      <div class="col-2 p-1 text-center" data-targetname="{{ embedding.get_shortname }}" data-url="{% url 'chatbot:delete_embedding' pk=embedding.pk %}">
+        {% bs_icon 'trash' color='red' extra_classes='delete-target-settings' %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="row mx-2">
+      <div class="col">
+        <p>{% trans "No embeddings exist. Please add your embedding above button." %}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# Tool list #}
+<div class="row justify-content-center mt-2 p-2">
+  <div class="col">
+    <div class="row">
+      <div class="col">
+        <p class="h4">{% trans "Tools" %}</p>
+      </div>
+    </div>
+    {% for tool in tools %}
+    <div class="row align-items-center mx-2 border {% if forloop.counter > 1 %}border-top-0{% endif %}">
+      <div class="col-10 border-end">
+        <span class="float-end"></span>
+        <a href="{% url 'chatbot:update_tool' pk=tool.pk %}"
+           class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover text-break">
+          {{ tool.get_shortname }}
+        </a>
+      </div>
+      <div class="col-2 p-1 text-center" data-targetname="{{ tool.get_shortname }}" data-url="{% url 'chatbot:delete_tool' pk=tool.pk %}">
+        {% bs_icon 'trash' color='red' extra_classes='delete-target-settings' %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="row mx-2">
+      <div class="col">
+        <p>{% trans "No tools exist. Please add your tool above button." %}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# Back to previous page #}
+<div class="row justify-content-center my-2 p-2">
+  <div class="col">
+    <a href="{% url 'chatbot:index' %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+      {% trans "Back" %}
+    </a>
+  </div>
+</div>
+
+<div class="modal" id="delete-modal" tabindex="-1" aria-labelledby="deletion-label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="modal-title fs-5" id="deletion-label">{% trans "Confirmation of deletion" %}</p>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-danger"><strong>{% trans "May I really delete this setting ?" %}</strong></p>
+        <p>{% trans "target" %}: <span id="target-setting-name" class="text-break"></span></p>
+      </div>
+      <div class="modal-footer">
+        <form method="POST" action="" id="delete-form" class="w-100">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-12 col-md-6">
+              <button type="submit" class="btn btn-danger w-100 custom-boxshadow-effect">
+                {% trans "Accept" %}
+              </button>
+            </div>
+            <div class="col-12 col-md-6">
+              <button type="button" class="btn btn-secondary w-100 custom-boxshadow-effect" data-bs-dismiss="modal">
+                {% trans "Close" %}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block bodyjs %}
+<script>
+(function () {
+  const deleteBtns = document.querySelectorAll('.delete-target-settings');
+  const deleteForm = document.querySelector('#delete-form');
+  const settingNameField = document.querySelector('#target-setting-name');
+
+  for (const btn of deleteBtns) {
+    btn.addEventListener('click', (event) => {
+      const parent = btn.parentNode;
+      deleteForm.action = parent.dataset.url;
+      settingNameField.textContent = parent.dataset.targetname;
+      const modal = new bootstrap.Modal('#delete-modal');
+      modal.show();
+    });
+  }
+})();
+</script>
+{% endblock %}

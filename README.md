@@ -44,4 +44,4 @@ Enter the following commands in your terminal to start Django application and Da
 ./wrapper.sh start
 ```
 
-Then, access to `http://server-ip-address:8192` tio check the operation of Django application.
+Then, access to `http://server-ip-address:7654` tio check the operation of Django application.

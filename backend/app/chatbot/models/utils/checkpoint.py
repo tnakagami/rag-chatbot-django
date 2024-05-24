@@ -67,7 +67,7 @@ class DjangoPostgresCheckpoint(BaseCheckpointSaver):
       CheckpointThreadTs,
     ]
 
-  def _convert_django_timestamp(self, timestamp, is_localtime=False):
+  def _convert_django_timestamp(self, timestamp, is_localtime=False) -> Union[None, localtime, datetime]:
     if timestamp:
       out = localtime(timestamp) if is_localtime else timestamp
     else:
@@ -75,7 +75,7 @@ class DjangoPostgresCheckpoint(BaseCheckpointSaver):
 
     return out
 
-  def _create_checkpoint_tuple(self, instance):
+  def _create_checkpoint_tuple(self, instance) -> Union[None, CheckpointTuple]:
     if instance:
       thread_id = instance.thread.pk
       current_time = self._convert_django_timestamp(instance.current_time, is_localtime=True)

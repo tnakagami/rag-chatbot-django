@@ -57,7 +57,6 @@ class CustomVectorStore(VectorStore):
   def add_texts(
     self,
     texts: Iterable[str],
-    assistant_id: int,
     metadatas: Optional[List[dict]] = None,
     **kwargs: Any,
   ) -> List[str]:
@@ -66,7 +65,6 @@ class CustomVectorStore(VectorStore):
     return self.add_embeddings(
       texts=texts,
       embeddings=embeddings,
-      assistant_id=assistant_id,
       metadatas=metadatas,
       **kwargs,
     )
@@ -75,7 +73,6 @@ class CustomVectorStore(VectorStore):
     self,
     texts: Iterable[str],
     embeddings: List[List[float]],
-    assistant_id: int,
     metadatas: Optional[List[dict]] = None,
     **kwargs: Any,
   ) -> List[str]:
@@ -83,11 +80,11 @@ class CustomVectorStore(VectorStore):
 
     for text, embedding in zip(texts, embeddings):
       embedding_store = self.manager.create(
-        assistant_id=assistant_id,
         embedding=embedding,
         document=text,
+        **kwargs,
       )
-      outputs.append(embedding_store.document)
+      outputs.append(str(embedding_store.pk))
 
     return outputs
 
@@ -108,36 +105,27 @@ class CustomVectorStore(VectorStore):
 
     return relevance_score_fn
 
-  def similarity_search(
-    self, query: str, assistant_id: int, k: int = 4, **kwargs: Any
-  ) -> List[Document]:
+  def similarity_search(self, query: str, k: int = 4, **kwargs: Any) -> List[Document]:
     embedding = self.embedding_function.embed_query(text=query)
 
     return self.similarity_search_by_vector(
       embedding=embedding,
-      assistant_id=assistant_id,
       k=k,
       **kwargs,
     )
 
-  def similarity_search_with_score(
-    self, query: str, assistant_id: int, k: int = 4, *args: Any, **kwargs: Any
-  ) -> List[Tuple[Document, float]]:
+  def similarity_search_with_score(self, query: str, k: int = 4, **kwargs: Any) -> List[Tuple[Document, float]]:
     embedding = self.embedding_function.embed_query(text=query)
 
     return self.similarity_search_with_score_by_vector(
       embedding=embedding,
-      assistant_id=assistant_id,
       k=k,
       **kwargs,
     )
 
-  def similarity_search_by_vector(
-    self, embedding: List[float], assistant_id: int, k: int = 4, **kwargs: Any
-  ) -> List[Document]:
+  def similarity_search_by_vector(self, embedding: List[float], k: int = 4, **kwargs: Any) -> List[Document]:
     docs_and_scores = self.similarity_search_with_score_by_vector(
       embedding=embedding,
-      assistant_id=assistant_id,
       k=k,
       **kwargs,
     )
@@ -145,17 +133,17 @@ class CustomVectorStore(VectorStore):
     return self._results_to_docs(docs_and_scores)
 
   def similarity_search_with_score_by_vector(
-    self, embedding: List[float], assistant_id: int, k: int = 4, **kwargs: Any
+    self, embedding: List[float], k: int = 4, **kwargs: Any
   ) -> List[Tuple[Document, float]]:
-    results = self.__collect_records(assistant_id, embedding)
+    results = self.__collect_records(embedding, **kwargs)
 
     return self._results_to_docs_and_scores(results[:k])
 
-  def __collect_records(self, assistant_id: int, embedding: List[float]):
+  def __collect_records(self,  embedding: List[float], **kwargs: Any):
     return self.manager.similarity_search_with_distance_by_vector(
       embedded_query=embedding,
-      assistant_id=assistant_id,
       distance_strategy=self._distance_strategy,
+      **kwargs,
     )
 
   def _results_to_docs(self, docs_and_scores: List[Tuple[Document, float]]):
@@ -175,7 +163,6 @@ class CustomVectorStore(VectorStore):
   def max_marginal_relevance_search(
     self,
     query: str,
-    assistant_id: int,
     k: int = 4,
     fetch_k: int = 20,
     lambda_mult: float = 0.5,
@@ -185,7 +172,6 @@ class CustomVectorStore(VectorStore):
 
     return self.max_marginal_relevance_search_by_vector(
       embedding=embedding,
-      assistant_id=assistant_id,
       k=k,
       fetch_k=fetch_k,
       lambda_mult=lambda_mult,
@@ -195,7 +181,6 @@ class CustomVectorStore(VectorStore):
   def max_marginal_relevance_search_with_score(
     self,
     query: str,
-    assistant_id: int,
     k: int = 4,
     fetch_k: int = 20,
     lambda_mult: float = 0.5,
@@ -204,7 +189,6 @@ class CustomVectorStore(VectorStore):
     embedding = self.embedding_function.embed_query(query)
     docs = self.max_marginal_relevance_search_with_score_by_vector(
       embedding=embedding,
-      assistant_id=assistant_id,
       k=k,
       fetch_k=fetch_k,
       lambda_mult=lambda_mult,
@@ -216,7 +200,6 @@ class CustomVectorStore(VectorStore):
   def max_marginal_relevance_search_by_vector(
     self,
     embedding: List[float],
-    assistant_id: int,
     k: int = 4,
     fetch_k: int = 20,
     lambda_mult: float = 0.5,
@@ -224,7 +207,6 @@ class CustomVectorStore(VectorStore):
   ) -> List[Document]:
     docs_and_scores = self.max_marginal_relevance_search_with_score_by_vector(
       embedding=embedding,
-      assistant_id=assistant_id,
       k=k,
       fetch_k=fetch_k,
       lambda_mult=lambda_mult,
@@ -236,13 +218,12 @@ class CustomVectorStore(VectorStore):
   def max_marginal_relevance_search_with_score_by_vector(
     self,
     embedding: List[float],
-    assistant_id: int,
     k: int = 4,
     fetch_k: int = 20,
     lambda_mult: float = 0.5,
     **kwargs: Any,
   ) -> List[Tuple[Document, float]]:
-    results = self.__collect_records(assistant_id, embedding)
+    results = self.__collect_records(embedding, **kwargs)
     targets = results[:fetch_k]
     embedding_list = [record.embedding for record in targets]
     # Select maximal marginal relevance
@@ -262,7 +243,6 @@ class CustomVectorStore(VectorStore):
     cls,
     manager: DjangoManager,
     strategy: DistanceStrategy,
-    assistant_id: int,
     texts: List[str],
     embedding: Embeddings,
     metadatas: Optional[List[dict]] = None,
@@ -278,7 +258,6 @@ class CustomVectorStore(VectorStore):
     store.add_embeddings(
       texts=texts,
       embeddings=embedding_vectors,
-      assistant_id=assistant_id,
       metadatas=metadatas,
       **kwargs,
     )
@@ -290,7 +269,6 @@ class CustomVectorStore(VectorStore):
     cls,
     manager: DjangoManager,
     strategy: DistanceStrategy,
-    assistant_id: int,
     texts: List[str],
     embedding: Embeddings,
     metadatas: Optional[List[dict]] = None,
@@ -298,5 +276,5 @@ class CustomVectorStore(VectorStore):
   ):
     """Return VectorStore initialized from texts and embeddings."""
     return await run_in_executor(
-      None, cls.from_texts, manager, strategy, assistant_id, texts, embedding, metadatas, **kwargs
+      None, cls.from_texts, manager, strategy, texts, embedding, metadatas, **kwargs
     )

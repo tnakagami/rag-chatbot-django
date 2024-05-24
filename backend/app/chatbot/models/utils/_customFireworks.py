@@ -24,7 +24,7 @@ class _BaseFireworks:
     timeout: int = 600,
     account: str = 'fireworks',
     **kwargs,
-  ):
+  ) -> None:
     self._client_v1 = FireworksClientV1(
       api_key=api_key, 
       base_url=base_url, 
@@ -47,10 +47,10 @@ class CustomFireworks(_BaseFireworks):
   def __enter__(self):
     return self
 
-  def __exit__(self, *exc):
+  def __exit__(self, *exc) -> None:
     self.close()
 
-  def close(self):
+  def close(self) -> None:
     self._client_v1.close()
     self._image_client_v1.close()
 
@@ -58,9 +58,9 @@ class CustomAsyncFireworks(_BaseFireworks):
   async def __aenter__(self):
     return self
 
-  async def __aexit__(self, *exc):
+  async def __aexit__(self, *exc) -> None:
     await self.aclose()
 
-  async def aclose(self):
+  async def aclose(self) -> None:
     await self._client_v1.aclose()
     await self._image_client_v1.aclose()

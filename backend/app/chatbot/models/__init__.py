@@ -3,6 +3,7 @@ from .rag import (
   Embedding,
   Tool,
   Assistant,
+  DocumentFile,
   Thread,
 )
 
@@ -11,5 +12,6 @@ __all__ = [
   'Embedding',
   'Tool',
   'Assistant',
+  'DocumentFile',
   'Thread',
 ]

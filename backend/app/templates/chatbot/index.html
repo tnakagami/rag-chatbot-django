@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load bootstrap_icons %}
+
+{% block header %}
+<style>
+  .delete-target-docfile:hover {
+    cursor: pointer;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("Chatbot - Index") %}
+{# Assistant/Setting creation #}
+<div class="row justify-content-center p-2">
+  <div class="col">
+    <div class="row row-cols-1 row-cols-md-2 g-2">
+      <div class="col">
+        <a href="{% url 'chatbot:create_assistant' %}" class="btn btn-primary w-100 custom-boxshadow-effect">
+          {% trans "Create assistant" %}
+        </a>
+      </div>
+      <div class="col">
+        <a href="{% url 'chatbot:settings' %}" class="btn btn-success w-100 custom-boxshadow-effect">
+          {% trans "Settings" %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Assistant list #}
+<div class="row justify-content-center p-2">
+  <div class="col">
+    <div class="row">
+      <div class="col">
+        <p class="h4">{% trans "Assistants (Chatbot)" %}</p>
+      </div>
+    </div>
+    {% for assistant in assistants %}
+    <div class="row align-items-center mx-2 border {% if forloop.counter > 1 %}border-top-0{% endif %}">
+      <div class="col-8 col-md-10 ps-2 pe-0 border-end">
+        <a href="{% url 'chatbot:detail_assistant' pk=assistant.pk %}" 
+           class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover text-break">
+          {{ assistant }}
+        </a>
+        <div class="collapse py-2" id="document-files{{ forloop.counter }}">
+          {% for docfile in assistant.docfiles.all %}
+          <div class="row align-items-center ms-2 me-0 border border-end-0 {% if forloop.counter > 1 %}border-top-0{% endif %}">
+            <div class="col-10 border-end text-break">
+              {{ docfile }}
+            </div>
+            <div class="col-2 p-1 text-center" data-targetname="{{ docfile }}" data-url="{% url 'chatbot:delete_docfile' pk=docfile.pk %}">
+              {% bs_icon 'trash' extra_classes='delete-target-docfile text-danger' %}
+            </div>
+          </div>
+          {% empty %}
+          <div class="row mx-2">
+            <div class="col">
+              <p>{% trans "No document files exist." %}</p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="col-4 col-md-2 px-0">
+        <div class="dropdown text-center">
+          <a href="#" class="btn btn-link text-dark text-decoration-none w-100 dropdown-toggle p-1" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            {% bs_icon 'gear' %}
+          </a>
+          <ul class="dropdown-menu">
+            <li>
+              <a href="#" class="dropdown-item text-dark" role="button" data-bs-toggle="collapse"
+                 data-bs-target="#document-files{{ forloop.counter }}" aria-expanded="false" aria-controls="document-files{{ forloop.counter }}">
+                {% bs_icon 'arrows-expand' %}{% trans "Show/Hide files" %}
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'chatbot:create_docfile' assistant_pk=assistant.pk %}" class="dropdown-item text-dark">
+                {% bs_icon 'plus-square' %}{% trans "Add documents" %}
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'chatbot:update_assistant' pk=assistant.pk %}" class="dropdown-item text-primary">
+                {% bs_icon 'pencil-square' %}{% trans "Edit" %}
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a href="#" class="dropdown-item delete-target-assistant text-danger" data-targetname="{{ assistant }}"
+                data-url="{% url 'chatbot:delete_assistant' pk=assistant.pk %}">
+                {% bs_icon 'trash' %}{% trans "Delete" %}
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="row mx-2">
+      <div class="col">
+        <p>{% trans "No assistants exist. Please add your assistant above button." %}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# Back to previous page #}
+<div class="row justify-content-center my-2 p-2">
+  <div class="col">
+    <a href="{% url 'account:index' %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+      {% trans "Back" %}
+    </a>
+  </div>
+</div>
+
+<div class="modal" id="delete-modal" tabindex="-1" aria-labelledby="deletion-label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="modal-title fs-5" id="deletion-label">{% trans "Confirmation of deletion" %}</p>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-danger"><strong>{% trans "May I really delete this record ?" %}</strong></p>
+        <p>{% trans "target" %}: <span id="target-field-name" class="text-break"></span></p>
+      </div>
+      <div class="modal-footer">
+        <form method="POST" action="" id="delete-form" class="w-100">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-12 col-md-6">
+              <button type="submit" class="btn btn-danger w-100 custom-boxshadow-effect">
+                {% trans "Accept" %}
+              </button>
+            </div>
+            <div class="col-12 col-md-6">
+              <button type="button" class="btn btn-secondary w-100 custom-boxshadow-effect" data-bs-dismiss="modal">
+                {% trans "Close" %}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block bodyjs %}
+<script>
+(function () {
+  const deleteAssistantBtns = document.querySelectorAll('.delete-target-assistant');
+  const deleteDocFileBtns = document.querySelectorAll('.delete-target-docfile');
+  const deleteForm = document.querySelector('#delete-form');
+  const targetField = document.querySelector('#target-field-name');
+
+  const callback = (event, element) => {
+    deleteForm.action = element.dataset.url;
+    targetField.textContent = element.dataset.targetname;
+    const modal = new bootstrap.Modal('#delete-modal');
+    modal.show();
+  };
+
+  for (const btn of deleteAssistantBtns) {
+    btn.addEventListener('click', (event) => callback(event, btn));
+  }
+  for (const btn of deleteDocFileBtns) {
+    const parent = btn.parentNode;
+    btn.addEventListener('click', (event) => callback(event, parent));
+  }
+})();
+</script>
+{% endblock %}

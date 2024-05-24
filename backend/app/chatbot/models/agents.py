@@ -1,5 +1,9 @@
-from dataclasses import dataclass, asdict
+from dataclasses import (
+  dataclass,
+  field as dc_field,
+)
 from typing import Dict, Tuple, List, Union, Any
+from collections.abc import Callable
 from functools import wraps
 from django.db import models
 from django.utils.translation import gettext_lazy
@@ -7,6 +11,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Manager as DjangoManager
 from langchain.schema.embeddings import Embeddings
 from langgraph.checkpoint import BaseCheckpointSaver
+from .utils._local import LocalField
 from .utils import (
   OpenAILLM,
   AzureOpenAILLM,
@@ -33,6 +38,31 @@ from .utils import (
   WikipediaTool,
 )
 
+VALID_LLMS = Union[
+  OpenAILLM,
+  AzureOpenAILLM,
+  AnthropicLLM,
+  BedrockLLM,
+  FireworksLLM,
+  OllamaLLM,
+  GeminiLLM,
+]
+VALID_TOOLS = Union[
+  RetrievalTool,
+  ActionServerTool,
+  ArxivTool,
+  ConneryTool,
+  DallETool,
+  DDGSearchTool,
+  SecFilingsTool,
+  PressReleasesTool,
+  PubMedTool,
+  TavilySearchTool,
+  TavilyAnswerTool,
+  YouSearchTool,
+  WikipediaTool,
+]
+
 @dataclass
 class AgentArgs:
   tools: List[BaseTool]
@@ -45,6 +75,13 @@ class ToolArgs:
   assistant_id: int
   manager: DjangoManager
   embedding: Any
+  docfile_ids: List[int] = dc_field(default_factory=list)
+
+class classproperty:
+  def __init__(self, fget):
+    self.fget = fget
+  def __get__(self, instance, owner):
+    return self.fget(owner)
 
 class AgentType(models.IntegerChoices):
   OPENAI    = 1, gettext_lazy('Open AI')
@@ -55,11 +92,20 @@ class AgentType(models.IntegerChoices):
   OLLAMA    = 6, gettext_lazy('Ollama')
   GEMINI    = 7, gettext_lazy('GEMINI')
 
-  def __str__(self):
+  def __str__(self) -> str:
     return f'{self.label}'
 
+  @classproperty
+  def embedding_choices(cls) -> List[Tuple[int, str]]:
+    # Filtering choices
+    _invalids = [cls.ANTHROPIC]
+    invalid_vals = [member.value for member in _invalids]
+    _choices = [(value, label) for value, label in cls.choices if value not in invalid_vals]
+
+    return _choices
+
   @property
-  def _llm_type(self):
+  def _llm_type(self) -> VALID_LLMS:
     # Patterns of LLM's chatbot
     lookup = {
       AgentType.OPENAI:    OpenAILLM,
@@ -74,7 +120,7 @@ class AgentType(models.IntegerChoices):
     return lookup[self]
 
   @property
-  def _executor_type(self):
+  def _executor_type(self) -> Union[ToolExecutor, XmlExecutor]:
     # Patterns of executor
     lookup = {
       AgentType.OPENAI:    ToolExecutor,
@@ -89,39 +135,9 @@ class AgentType(models.IntegerChoices):
     return lookup[self]
 
   @classmethod
-  def get_embedding_choices(cls):
-    # Filtering choices
-    _invalids = [cls.ANTHROPIC]
-    invalid_vals = [member.value for member in _invalids]
-    _choices = [(value, label) for value, label in cls.choices if value not in invalid_vals]
-
-    return _choices
-
-  @classmethod
-  def get_embedding_validator(cls):
-    valids = [value for value, _ in cls.get_embedding_choices()]
-    invalids = [(value, label) for value, label in cls.choices if value not in valids]
-
-    @wraps(cls.get_embedding_validator)
-    def validator(value):
-      matched = [(item, label) for item, label in invalids if item == value]
-
-      if len(matched) > 0:
-        _, label = matched[0]
-
-        raise ValidationError(
-          gettext_lazy(f'{label} is the invalid AgentType'),
-          params={'value': value}
-        )
-
-      return value
-
-    return validator
-
-  @classmethod
-  def get_llm_fields(cls, agent_id: int, is_embedded=False):
+  def get_llm_fields(cls, agent_id: int, config: Dict, is_embedded: bool = False) -> List[LocalField]:
     _self = cls(agent_id)
-    instance = _self._llm_type()
+    instance = _self._llm_type(**config)
     fields = instance.get_fields(is_embedded=is_embedded)
 
     return fields
@@ -132,7 +148,7 @@ class AgentType(models.IntegerChoices):
     agent_id: int,
     config: Dict,
     args: AgentArgs,
-  ):
+  ) -> Union[ToolExecutor, XmlExecutor]:
     _self = cls(agent_id)
     instance = _self._llm_type(**config)
     llm = instance.get_llm(is_embedded=False)
@@ -146,7 +162,7 @@ class AgentType(models.IntegerChoices):
     cls,
     agent_id: int,
     config: Dict,
-  ):
+  ) -> Any:
     _self = cls(agent_id)
     instance = _self._llm_type(**config)
     embedding = instance.get_llm(is_embedded=True)
@@ -168,11 +184,11 @@ class ToolType(models.IntegerChoices):
   YOU_SEARCH         = 12, gettext_lazy('You Search')
   WIKIPEDIA          = 13, gettext_lazy('Wikipedia')
 
-  def __str__(self):
+  def __str__(self) -> str:
     return f'{self.label}'
 
   @property
-  def _tool_type(self):
+  def _tool_type(self) -> VALID_TOOLS:
     # Patterns of tool
     lookup = {
       ToolType.RETRIEVER:          RetrievalTool,
@@ -197,9 +213,21 @@ class ToolType(models.IntegerChoices):
     cls,
     tool_id: int,
     config: Dict,
-  ):
+  ) -> List[LocalField]:
     _self = cls(tool_id)
-    instance = _self._tool_type(config)
+
+    if _self == ToolType.RETRIEVER:
+      retriever_config = {
+        'assistant_id': 0,
+        'manager': None,
+        'strategy': None,
+        'embeddings': None,
+        'docfile_ids': [],
+        'search_kwargs': config,
+      }
+      instance = _self._tool_type(retriever_config)
+    else:
+      instance = _self._tool_type(config)
     fields = instance.get_config_fields()
 
     return fields
@@ -210,7 +238,7 @@ class ToolType(models.IntegerChoices):
     tool_id: int,
     config: Dict,
     args: ToolArgs,
-  ):
+  ) -> List[BaseTool]:
     _self = cls(tool_id)
 
     if _self == ToolType.RETRIEVER:
@@ -219,6 +247,7 @@ class ToolType(models.IntegerChoices):
         'manager': args.manager,
         'strategy': args.embedding.get_distance_strategy(),
         'embeddings': args.embedding.get_embedding(),
+        'docfile_ids': args.docfile_ids,
         'search_kwargs': config,
       }
       instance = _self._tool_type(retriever_config)

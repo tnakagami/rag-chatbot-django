@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load bootstrap_icons %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("Chatbot - Assistant") %}
+{# Thread creation #}
+<div class="row justify-content-center p-2">
+  <div class="col">
+    <a href="{% url 'chatbot:create_thread' assistant_pk=assistant.pk %}" class="btn btn-primary w-100 custom-boxshadow-effect">
+      {% trans "Create thread" %}
+    </a>
+  </div>
+</div>
+
+{# Thread list #}
+<div class="row justify-content-center p-2">
+  <div class="col">
+    <div class="row">
+      <div class="col">
+        <p class="h4 text-break">{{ assistant }}</p>
+      </div>
+    </div>
+    {% for thread in assistant.threads.all %}
+    <div class="row align-items-center mx-2 border {% if forloop.counter > 1 %}border-top-0{% endif %}">
+      <div class="col-8 col-md-10 ps-2 pe-0 border-end">
+        <a href="{% url 'chatbot:detail_thread' pk=thread.pk %}"
+           class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover text-break">
+          {{ thread }}
+        </a>
+      </div>
+      <div class="col-4 col-md-2 px-0">
+        <div class="dropdown text-center">
+          <a href="#" class="btn btn-link text-dark text-decoration-none w-100 dropdown-toggle p-1" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            {% bs_icon 'gear' %}
+          </a>
+          <ul class="dropdown-menu">
+            <li>
+              <a href="{% url 'chatbot:update_thread' pk=thread.pk %}" class="dropdown-item text-primary">
+                {% bs_icon 'pencil-square' %}{% trans "Edit" %}
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a href="#" class="dropdown-item delete-target-thread text-danger" data-targetname="{{ thread }}"
+                data-url="{% url 'chatbot:delete_thread' pk=thread.pk %}">
+                {% bs_icon 'trash' %}{% trans "Delete" %}
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="row mx-2">
+      <div class="col">
+        <p>{% trans "No threads exist. Please add your thread above button." %}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# Back to previous page #}
+<div class="row justify-content-center my-2 p-2">
+  <div class="col">
+    <a href="{% url 'chatbot:index' %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+      {% trans "Back" %}
+    </a>
+  </div>
+</div>
+
+<div class="modal" id="delete-modal" tabindex="-1" aria-labelledby="deletion-label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="modal-title fs-5" id="deletion-label">{% trans "Confirmation of deletion" %}</p>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-danger"><strong>{% trans "May I really delete this thread ?" %}</strong></p>
+        <p>{% trans "target" %}: <span id="target-thread-name" class="text-break"></span></p>
+      </div>
+      <div class="modal-footer">
+        <form method="POST" action="" id="delete-form" class="w-100">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-12 col-md-6">
+              <button type="submit" class="btn btn-danger w-100 custom-boxshadow-effect">
+                {% trans "Accept" %}
+              </button>
+            </div>
+            <div class="col-12 col-md-6">
+              <button type="button" class="btn btn-secondary w-100 custom-boxshadow-effect" data-bs-dismiss="modal">
+                {% trans "Close" %}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block bodyjs %}
+<script>
+(function () {
+  const deleteBtns = document.querySelectorAll('.delete-target-thread');
+  const deleteForm = document.querySelector('#delete-form');
+  const threadField = document.querySelector('#target-thread-name');
+
+  for (const btn of deleteBtns) {
+    btn.addEventListener('click', (event) => {
+      deleteForm.action = btn.dataset.url;
+      threadField.textContent = btn.dataset.targetname;
+      const modal = new bootstrap.Modal('#delete-modal');
+      modal.show();
+    });
+  }
+})();
+</script>
+{% endblock %}

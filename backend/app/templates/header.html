@@ -39,14 +39,17 @@
               </ul>
             </li>
             <li class="nav-item">
+              <a class="nav-link" href="{% url 'restful:swagger-ui' %}">{% trans "REST API Document" %}</a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link" href="{% url 'account:login' %}">{% trans "Login" %}</a>
             </li>
             {% else %}
             <li class="nav-item">
-
+              <a class="nav-link" href="{% url 'account:user_profile' pk=user.pk %}">{% trans "User Profile" %}</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'account:user_profile' pk=user.pk %}">{% trans "User Profile" %}</a>
+              <a class="nav-link" href="{% url 'restful:swagger-ui' %}">{% trans "REST API Document" %}</a>
             </li>
             <li class="nav-item">
               <a class="nav-link" href="{% url 'account:logout' %}">{% trans "Logout" %}</a>

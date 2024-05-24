@@ -25,7 +25,7 @@ class _LiberalToolMessage(ToolMessage):
   content: Any
 
 class _BaseExecutor:
-  def __init__(self, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver):
+  def __init__(self, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver) -> None:
     self.llm = None
     self.tool_executor = LangGraphToolExecutor(tools)
     self.is_interrupt = is_interrupt
@@ -67,7 +67,9 @@ class _BaseExecutor:
     app = workflow.compile(
       checkpointer=self.checkpoint,
       interrupt_before=['action'] if self.is_interrupt else None,
-    ).with_types(
+    ).with_config({
+      'recursion_limit': 10
+    }).with_types(
       input_type=Messages,
       output_type=Sequence[AnyMessage],
     )
@@ -75,7 +77,7 @@ class _BaseExecutor:
     return app
 
 class ToolExecutor(_BaseExecutor):
-  def __init__(self, llm: BaseLanguageModel, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver):
+  def __init__(self, llm: BaseLanguageModel, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver) -> None:
     super().__init__(tools, is_interrupt, checkpoint)
 
     if tools:
@@ -87,7 +89,7 @@ class ToolExecutor(_BaseExecutor):
       self.llm = llm
     self.template = '{system_message}'
 
-  def get_messages(self, messages, system_message):
+  def get_messages(self, messages, system_message) -> list[AnyMessage]:
     msgs = [SystemMessage(content=system_message)]
 
     for _msg in messages:
@@ -103,13 +105,13 @@ class ToolExecutor(_BaseExecutor):
 
     return msgs
 
-  def should_continue(self, messages):
+  def should_continue(self, messages) -> str:
     last_message = messages[-1]
     exec_type = 'continue' if last_message.tool_calls else 'end'
 
     return exec_type
 
-  async def call_tool(self, messages):
+  async def call_tool(self, messages) -> list[_LiberalToolMessage]:
     last_message = cast(AIMessage, messages[-1])
     actions = [
       ToolInvocation(tool=tool_call['name'], tool_input=tool_call['args'])
@@ -124,7 +126,7 @@ class ToolExecutor(_BaseExecutor):
     return tool_messages
 
 class XmlExecutor(_BaseExecutor):
-  def __init__(self, llm: BaseLanguageModel, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver):
+  def __init__(self, llm: BaseLanguageModel, tools: List[BaseTool], is_interrupt: bool, checkpoint: BaseCheckpointSaver) -> None:
     super().__init__(tools, is_interrupt, checkpoint)
     self.llm = llm.bind(stop=['</tool_input>', '<observation>']) if tools else llm
     self.template = '\n'.join([
@@ -145,7 +147,7 @@ class XmlExecutor(_BaseExecutor):
       'Begin!',
     ])
 
-  def _collapse_message(self, messages):
+  def _collapse_message(self, messages) -> AIMessage:
     if isinstance(messages[-1], AIMessage):
       scratchpad = messages[:-1]
       final = messages[-1]
@@ -165,7 +167,7 @@ class XmlExecutor(_BaseExecutor):
 
     return AIMessage(content=log)
 
-  def _construct_chat_history(self, messages):
+  def _construct_chat_history(self, messages) -> list[AnyMessage]:
     collapsed = []
     tmp_msg = []
 
@@ -187,7 +189,7 @@ class XmlExecutor(_BaseExecutor):
 
     return collapsed
 
-  def get_messages(self, messages, system_message):
+  def get_messages(self, messages, system_message) -> list[AnyMessage]:
     msgs = [SystemMessage(content=system_message)] + self._construct_chat_history(messages)
 
     return msgs
@@ -198,7 +200,7 @@ class XmlExecutor(_BaseExecutor):
 
     return exec_type
 
-  async def call_tool(self, messages):
+  async def call_tool(self, messages) -> _LiberalFunctionMessage:
     last_message = messages[-1]
     tool, tool_input = last_message.content.split('</tool>')
     _tool = tool.split('<tool>')[1]

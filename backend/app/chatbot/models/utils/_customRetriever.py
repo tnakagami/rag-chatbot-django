@@ -44,13 +44,13 @@ class ServerError(Exception):
     pass
 
 class _KayRetriever:
-  def __init__(self, api_key=None, dataset_id='company', data_types=None):
+  def __init__(self, api_key=None, dataset_id='company', data_types=None) -> None:
     self._validate_dataset_id(dataset_id)
     self.api_key = api_key or os.getenv('KAY_API_KEY')
     self.dataset_id = dataset_id
     self.data_types = data_types
 
-  def _validate_dataset_id(self, dataset_id):
+  def _validate_dataset_id(self, dataset_id) -> None:
     available_dataset_id = ['company']
 
     if dataset_id not in available_dataset_id:
@@ -79,7 +79,7 @@ class _KayRetriever:
     else:
       raise ServerError(embed_store_response.get('error', 'Unknown Error'))
 
-  def _call_kay(self, prompt, dataset_config=None, retrieval_config=None):
+  def _call_kay(self, prompt, dataset_config=None, retrieval_config=None) -> dict:
     url = 'https://api.kay.ai/retrieve'
     headers = {'API-Key': self.api_key}
     payload = {

@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import django
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -37,10 +38,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.forms',
     'rest_framework',
     'rest_framework_simplejwt',
+    'drf_spectacular',
     'view_breadcrumbs',
     'markdownx',
+    'django_bootstrap_icons',
     # apps
     'account.apps.AccountConfig',
     'chatbot.apps.ChatbotConfig',
@@ -60,10 +64,11 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'config.urls'
 
+FORM_RENDERER = 'django.forms.renderers.TemplatesSetting'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'DIRS': [os.path.join(BASE_DIR, 'templates'), os.path.join(django.__path__[0], 'forms/templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -96,20 +101,27 @@ LOGOUT_REDIRECT_URL = 'account:index'
 
 # define Django REST API
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': {
-        # Authentication is required
+    # Authentication is required
+    'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
-    },
-    'DEFAULT_AUTHENTICATION_CLASSES': {
-        # JWT (JSON Web Token) Authentication
+    ),
+    # JWT (JSON Web Token) Authentication
+    'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    },
+    ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=3),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
     'ROTATE_REFRESH_TOKENS': True,
     'AUTH_HEADER_TYPES': ('JWT',),
+}
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Chatbot using RAG',
+    'DESCRIPTION': 'This application is chatbot using Retrieval-Augmented Generation.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
 # Password validation
@@ -130,6 +142,42 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime}[{levelname}] {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'verbose_console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['verbose_console'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/

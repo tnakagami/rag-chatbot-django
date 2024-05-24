@@ -1,0 +1,26 @@
+{% for field in form %}
+<div class="row row-cols-1 my-2">
+  <div class="col">
+    <div class="form-floating">
+      {{ field }}
+      <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+    </div>
+  </div>
+  {% if field.errors %}
+  <div class="col text-danger fs-6">
+    {{ field.errors }}
+  </div>
+  {% endif %}
+  {% if field.help_text %}
+  <div class="col custom-helptext" {% if field.auto_id %} id="{{ field.auto_id }}_helptext"{% endif %}>
+    {{ field.help_text|safe }}
+  </div>
+  {% endif %}
+</div>
+{% if forloop.last %}
+<div>{% for field in hidden_fields %}{{ field }}{% endfor %}</div>
+{% endif %}
+{% endfor %}
+{% if not fields and not errors %}
+  {% for field in hidden_fields %}{{ field }}{% endfor %}
+{% endif %}

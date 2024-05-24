@@ -21,28 +21,8 @@ from langchain_community.embeddings import OllamaEmbeddings
 from typing import Mapping
 from langchain_google_vertexai import ChatVertexAI
 from langchain_google_vertexai import VertexAIEmbeddings
-
-@pytest.fixture
-def fileds_checker_wrapper(check_llm_fields, check_embedding_fields):
-  _base_llm_checker = check_llm_fields
-  _base_embedding_checker = check_embedding_fields
-
-  def wrapper(callback):
-    def llm_checker(llm_fields, expected):
-      return all([
-        _base_llm_checker(llm_fields, expected),
-        callback(llm_fields, expected),
-      ])
-
-    def embedding_checker(embedinng_fields, expected):
-      return all([
-        _base_embedding_checker(embedinng_fields, expected),
-        callback(embedinng_fields, expected),
-      ])
-
-    return llm_checker, embedding_checker
-
-  return wrapper
+# For test
+from chatbot.models.utils import _local
 
 # ============
 # = _BaseLLM =
@@ -114,8 +94,9 @@ def test_check_basellm_args(get_basellm_arg_with_proxy):
 
 @pytest.mark.chatbot
 @pytest.mark.util
-def test_check_basellm_methods(get_basellm_arg_with_proxy, check_llm_fields, check_embedding_fields):
+def test_check_basellm_methods(get_basellm_arg_with_proxy, check_fields):
   kwargs, expected = get_basellm_arg_with_proxy
+  field_checker = check_fields
   ignore_keys = ['temperature', 'stream']
   instance = llms._BaseLLM(**kwargs)
   llm_fields = instance.get_fields(instance, is_embedded=False)
@@ -123,8 +104,8 @@ def test_check_basellm_methods(get_basellm_arg_with_proxy, check_llm_fields, che
 
   with pytest.raises(NotImplementedError):
     instance.get_llm()
-  assert check_llm_fields(llm_fields, expected)
-  assert check_embedding_fields(embedinng_fields, expected)
+  assert field_checker(llm_fields, expected)
+  assert field_checker(embedinng_fields, expected, ignores=ignore_keys)
 
 @pytest.mark.chatbot
 @pytest.mark.util
@@ -134,43 +115,55 @@ def test_check_basellm_methods(get_basellm_arg_with_proxy, check_llm_fields, che
   ['model', 'temperature', 'stream'],
   ['model', 'temperature', 'stream', 'max_retries'],
   ['model', 'temperature', 'stream', 'max_retries', 'proxy'],
+], ids=[
+  'no-model',
+  'no-model-temperature',
+  'no-model-temperature-stream',
+  'no-model-temperature-stream-max_retries',
+  'no-model-temperature-stream-max_retries-proxy',
 ])
 def test_check_basellm_delete_keys(get_basellm_arg_with_proxy, ignore_keys):
+  from dataclasses import fields
   kwargs, expected = get_basellm_arg_with_proxy
   instance = llms._BaseLLM(**kwargs)
-  rests = instance.delete_keys(asdict(instance), ignore_keys)
+  targets = [
+    _local.LocalField(
+      name=element.name,
+      value=getattr(instance, element.name, element.default),
+      default=element.default,
+      data_type=element.metadata['type'],
+      label=str(element.metadata['label']),
+    )
+    for element in fields(instance)
+  ]
 
-  assert all([ignore_key not in rests.keys() for ignore_key in ignore_keys])
-  for key in rests.keys():
-    assert rests[key] == expected[key]
+  rests = instance.delete_fields(targets, ignore_keys)
+  dcit_data = dict([_field.astuple() for _field in rests])
+
+  assert all([ignore_key not in dcit_data.keys() for ignore_key in ignore_keys])
+  assert all([val == expected[key] for key, val in dcit_data.items()])
 
 # =============
 # = OpenAILLM =
 # =============
 @pytest.fixture
-def get_openai_context(fileds_checker_wrapper, basellm_context):
+def get_openai_context(check_fields, basellm_context):
   specific = {
     'api_key': 'open-ai-key',
     'endpoint': 'http://dummy-open-ai/endpoint',
   }
-  def _check_specific(fields, expected):
-    return all([
-      fields['api_key'] == expected['api_key'],
-      fields['endpoint'] == expected['endpoint'],
-    ])
   # Setup
-  wrapper = fileds_checker_wrapper
+  field_checker = check_fields
   kwargs, expected, sync_client, async_client = basellm_context
-  llm_checker, embedding_checker = wrapper(_check_specific)
   kwargs.update(specific)
   expected.update(specific)
 
-  return kwargs, expected, llm_checker, embedding_checker, sync_client, async_client
+  return kwargs, expected, field_checker, sync_client, async_client
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_openai_chatbot(get_openai_context):
-  kwargs, expected, llm_checker, _, http_client, http_async_client = get_openai_context
+  kwargs, expected, field_checker, http_client, http_async_client = get_openai_context
   is_embedded = False
   instance = llms.OpenAILLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
@@ -185,16 +178,17 @@ def test_check_openai_chatbot(get_openai_context):
   assert llm.max_retries == expected['max_retries']
   assert isinstance(llm.http_client, http_client)
   assert isinstance(llm.http_async_client, http_async_client)
-  assert llm_checker(fields, expected)
+  assert field_checker(fields, expected)
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_openai_embedding(get_openai_context):
-  kwargs, expected, _, embedding_checker, http_client, http_async_client = get_openai_context
+  kwargs, expected, field_checker, http_client, http_async_client = get_openai_context
   is_embedded = True
   instance = llms.OpenAILLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
   fields = instance.get_fields(is_embedded=is_embedded)
+  ignore_keys = ['temperature', 'stream']
 
   assert isinstance(llm, OpenAIEmbeddings)
   assert llm.model == expected['model']
@@ -203,39 +197,31 @@ def test_check_openai_embedding(get_openai_context):
   assert llm.max_retries == expected['max_retries']
   assert isinstance(llm.http_client, http_client)
   assert isinstance(llm.http_async_client, http_async_client)
-  assert embedding_checker(fields, expected)
+  assert field_checker(fields, expected, ignores=ignore_keys)
 
 # ==================
 # = AzureOpenAILLM =
 # ==================
 @pytest.fixture
-def get_azure_openai_context(fileds_checker_wrapper, basellm_context):
+def get_azure_openai_context(check_fields, basellm_context):
   specific = {
     'api_key': 'azure-open-ai-key',
     'endpoint': 'http://dummy-azure-open-ai/endpoint',
     'version': 'dummy-version',
     'deployment': 'http://dummy-azure-open-ai/deployment',
   }
-  def _check_specific(fields, expected):
-    return all([
-      fields['api_key'] == expected['api_key'],
-      fields['endpoint'] == expected['endpoint'],
-      fields['version'] == expected['version'],
-      fields['deployment'] == expected['deployment'],
-    ])
   # Setup
-  wrapper = fileds_checker_wrapper
+  field_checker = check_fields
   kwargs, expected, sync_client, async_client = basellm_context
-  llm_checker, embedding_checker = wrapper(_check_specific)
   kwargs.update(specific)
   expected.update(specific)
 
-  return kwargs, expected, llm_checker, embedding_checker, sync_client, async_client
+  return kwargs, expected, field_checker, sync_client, async_client
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_azure_openai_chatbot(get_azure_openai_context):
-  kwargs, expected, llm_checker, _, http_client, http_async_client = get_azure_openai_context
+  kwargs, expected, field_checker, http_client, http_async_client = get_azure_openai_context
   is_embedded = False
   instance = llms.AzureOpenAILLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
@@ -252,16 +238,17 @@ def test_check_azure_openai_chatbot(get_azure_openai_context):
   assert llm.max_retries == expected['max_retries']
   assert isinstance(llm.http_client, http_client)
   assert isinstance(llm.http_async_client, http_async_client)
-  assert llm_checker(fields, expected)
+  assert field_checker(fields, expected)
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_azure_openai_embedding(get_azure_openai_context):
-  kwargs, expected, _, embedding_checker, http_client, http_async_client = get_azure_openai_context
+  kwargs, expected, field_checker, http_client, http_async_client = get_azure_openai_context
   is_embedded = True
   instance = llms.AzureOpenAILLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
   fields = instance.get_fields(is_embedded=is_embedded)
+  ignore_keys = ['temperature', 'stream']
 
   assert isinstance(llm, AzureOpenAIEmbeddings)
   assert llm.model == expected['model']
@@ -272,35 +259,29 @@ def test_check_azure_openai_embedding(get_azure_openai_context):
   assert llm.max_retries == expected['max_retries']
   assert isinstance(llm.http_client, http_client)
   assert isinstance(llm.http_async_client, http_async_client)
-  assert embedding_checker(fields, expected)
+  assert field_checker(fields, expected, ignores=ignore_keys)
 
 # ================
 # = AnthropicLLM =
 # ================
 @pytest.fixture
-def get_anthropic_context(fileds_checker_wrapper, basellm_context):
+def get_anthropic_context(check_fields, basellm_context):
   specific = {
     'api_key': 'anthropic-key',
     'endpoint': 'http://dummy-anthropic/endpoint',
   }
-  def _check_specific(fields, expected):
-    return all([
-      fields['api_key'] == expected['api_key'],
-      fields['endpoint'] == expected['endpoint'],
-    ])
   # Setup
-  wrapper = fileds_checker_wrapper
+  field_checker = check_fields
   kwargs, expected, _, _ = basellm_context
-  llm_checker, embedding_checker = wrapper(_check_specific)
   kwargs.update(specific)
   expected.update(specific)
 
-  return kwargs, expected, llm_checker, embedding_checker, anthropic.Client, anthropic.AsyncClient
+  return kwargs, expected, field_checker, anthropic.Client, anthropic.AsyncClient
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_anthropic_chatbot(get_anthropic_context):
-  kwargs, expected, llm_checker, _, http_client, http_async_client = get_anthropic_context
+  kwargs, expected, field_checker, http_client, http_async_client = get_anthropic_context
   is_embedded = False
   instance = llms.AnthropicLLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
@@ -315,12 +296,12 @@ def test_check_anthropic_chatbot(get_anthropic_context):
   assert llm.max_retries == expected['max_retries']
   assert isinstance(llm._client, http_client)
   assert isinstance(llm._async_client, http_async_client)
-  assert llm_checker(fields, expected)
+  assert field_checker(fields, expected)
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_anthropic_embedding(get_anthropic_context):
-  kwargs, _, _, _, _, _ = get_anthropic_context
+  kwargs, _, _, _, _ = get_anthropic_context
   is_embedded = True
   instance = llms.AnthropicLLM(**kwargs)
 
@@ -336,7 +317,7 @@ def test_check_anthropic_embedding(get_anthropic_context):
 # = BedrockLLM =
 # ==============
 @pytest.fixture
-def get_bedrock_context(basellm_context, mocker):
+def get_bedrock_context(basellm_context, check_fields, mocker):
   specific = {
     'service_name': 'bedrock-runtime',
     'region_name': 'dummy-bedrock-region',
@@ -345,37 +326,6 @@ def get_bedrock_context(basellm_context, mocker):
     'access_key': 'dummy-access-key',
     'secret_key': 'dummy-secret-key',
   }
-  def llm_checker(fields, expected):
-    use_proxy = 'proxy' in expected.keys()
-
-    return all([
-      'max_retries' not in fields.keys(),
-      fields['model'] == expected['model'],
-      fields['temperature'] == expected['temperature'],
-      fields['stream'] == expected['stream'],
-      fields['proxy'] == expected['proxy'] if use_proxy else fields['proxy'] is None,
-      fields['service_name'] == expected['service_name'],
-      fields['region_name'] == expected['region_name'],
-      fields['version'] == expected['version'],
-      fields['endpoint'] == expected['endpoint'],
-      fields['access_key'] == expected['access_key'],
-      fields['secret_key'] == expected['secret_key'],
-    ])
-  def embedding_checker(fields, expected):
-    use_proxy = 'proxy' in expected.keys()
-    ignore_keys = ['temperature', 'stream', 'max_retries']
-
-    return all([
-      all([ignore_key not in fields.keys() for ignore_key in ignore_keys]),
-      fields['model'] == expected['model'],
-      fields['proxy'] == expected['proxy'] if use_proxy else fields['proxy'] is None,
-      fields['service_name'] == expected['service_name'],
-      fields['region_name'] == expected['region_name'],
-      fields['version'] == expected['version'],
-      fields['endpoint'] == expected['endpoint'],
-      fields['access_key'] == expected['access_key'],
-      fields['secret_key'] == expected['secret_key'],
-    ])
   def _judge_proxy(config, expected):
     use_proxy = 'proxy' in expected.keys()
 
@@ -387,6 +337,7 @@ def get_bedrock_context(basellm_context, mocker):
     else:
       return True
   # Setup
+  field_checker = check_fields
   kwargs, expected, _, _ = basellm_context
   kwargs.update(specific)
   expected.update(specific)
@@ -424,12 +375,12 @@ def get_bedrock_context(basellm_context, mocker):
   }
   mocker.patch('botocore.loaders.Loader.load_service_model', side_effect=[dummy_model, dummy_rule])
 
-  return kwargs, expected, _judge_proxy, llm_checker, embedding_checker
+  return kwargs, expected, _judge_proxy, field_checker
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_bedrock_chatbot(get_bedrock_context):
-  kwargs, expected, judge_proxy, llm_checker, _ = get_bedrock_context
+  kwargs, expected, judge_proxy, field_checker = get_bedrock_context
   is_embedded = False
   instance = llms.BedrockLLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
@@ -439,66 +390,45 @@ def test_check_bedrock_chatbot(get_bedrock_context):
   assert llm.model_id == expected['model']
   assert llm.model_kwargs == {'temperature': expected['temperature']}
   assert llm.streaming == expected['stream']
-  assert llm_checker(fields, expected)
+  assert field_checker(fields, expected)
   assert judge_proxy(llm.client._client_config, expected)
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_bedrock_embedding(get_bedrock_context):
-  kwargs, expected, judge_proxy, _, embedding_checker = get_bedrock_context
+  kwargs, expected, judge_proxy, field_checker = get_bedrock_context
   is_embedded = True
   instance = llms.BedrockLLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
   fields = instance.get_fields(is_embedded=is_embedded)
+  ignore_keys = ['temperature', 'stream', 'max_retries']
 
   assert isinstance(llm, BedrockEmbeddings)
   assert llm.model_id == expected['model']
-  assert embedding_checker(fields, expected)
+  assert field_checker(fields, expected, ignores=ignore_keys)
   assert judge_proxy(llm.client._client_config, expected)
 
 # ================
 # = FireworksLLM =
 # ================
 @pytest.fixture
-def get_fireworks_context(basellm_context):
+def get_fireworks_context(basellm_context, check_fields):
   specific = {
     'api_key': 'dummy-firework-api-key',
     'endpoint': 'http://dummy-fireworks/endpoint',
   }
-  def llm_checker(fields, expected):
-    use_proxy = 'proxy' in expected.keys()
-
-    return all([
-      fields['model'] == expected['model'],
-      fields['temperature'] == expected['temperature'],
-      fields['stream'] == expected['stream'],
-      fields['max_retries'] == expected['max_retries'],
-      fields['proxy'] == expected['proxy'] if use_proxy else fields['proxy'] is None,
-      fields['api_key'] == expected['api_key'],
-      fields['endpoint'] == expected['endpoint'],
-    ])
-  def embedding_checker(fields, expected):
-    ignore_keys = ['temperature', 'stream', 'max_retries']
-    use_proxy = 'proxy' in expected.keys()
-
-    return all([
-      all([ignore_key not in fields.keys() for ignore_key in ignore_keys]),
-      fields['model'] == expected['model'],
-      fields['proxy'] == expected['proxy'] if use_proxy else fields['proxy'] is None,
-      fields['api_key'] == expected['api_key'],
-      fields['endpoint'] == expected['endpoint'],
-    ])
   # Setup
+  field_checker = check_fields
   kwargs, expected, _, _ = basellm_context
   kwargs.update(specific)
   expected.update(specific)
 
-  return kwargs, expected, llm_checker, embedding_checker
+  return kwargs, expected, field_checker
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_fireworks_chatbot(get_fireworks_context):
-  kwargs, expected, llm_checker, _ = get_fireworks_context
+  kwargs, expected, field_checker = get_fireworks_context
   is_embedded = False
   instance = llms.FireworksLLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
@@ -513,104 +443,82 @@ def test_check_fireworks_chatbot(get_fireworks_context):
   assert llm.model_kwargs == {'max_retries': expected['max_retries']}
   assert isinstance(llm.client, ChatCompletionV2)
   assert isinstance(llm.async_client, ChatCompletionV2)
-  assert llm_checker(fields, expected)
+  assert field_checker(fields, expected)
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_fireworks_embedding(get_fireworks_context):
-  kwargs, expected, _, embedding_checker = get_fireworks_context
+  kwargs, expected, field_checker = get_fireworks_context
   is_embedded = True
   instance = llms.FireworksLLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
   fields = instance.get_fields(is_embedded=is_embedded)
+  ignore_keys = ['temperature', 'stream', 'max_retries']
 
   assert isinstance(llm, CustomFireworksEmbeddings)
   assert llm.model == expected['model']
   assert llm.fireworks_api_key.get_secret_value() == expected['api_key']
   assert llm.base_url == expected['endpoint']
   assert isinstance(llm._client._client, httpx.Client)
-  assert embedding_checker(fields, expected)
+  assert field_checker(fields, expected, ignores=ignore_keys)
 
 # =============
 # = OllamaLLM =
 # =============
 @pytest.fixture
-def get_ollama_context(basellm_context):
+def get_ollama_context(basellm_context, check_fields):
   specific = {
     'endpoint': 'http://dummy-ollama/endpoint',
   }
-  def _check_specific(fields, expected):
-    ignore_keys = ['stream', 'max_retries']
-
-    return all([
-      all([ignore_key not in fields.keys() for ignore_key in ignore_keys]),
-      fields['model'] == expected['model'],
-      fields['temperature'] == expected['temperature'],
-      fields['endpoint'] == expected['endpoint'],
-    ])
   # Setup
+  field_checker = check_fields
   kwargs, expected, _, _ = basellm_context
   kwargs.update(specific)
   expected.update(specific)
 
-  return kwargs, expected, _check_specific
+  return kwargs, expected, field_checker
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_ollama_chatbot(get_ollama_context):
-  kwargs, expected, checker = get_ollama_context
+  kwargs, expected, field_checker = get_ollama_context
   is_embedded = False
   instance = llms.OllamaLLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
   fields = instance.get_fields(is_embedded=is_embedded)
+  ignore_keys = ['stream', 'max_retries']
 
   assert isinstance(llm, ChatOllama)
   assert llm.model == expected['model']
   assert llm.base_url == expected['endpoint']
   assert llm.temperature == expected['temperature']
-  assert checker(fields, expected)
+  assert field_checker(fields, expected, ignores=ignore_keys)
 
 @pytest.mark.chatbot
 @pytest.mark.util
 def test_check_ollama_embedding(get_ollama_context):
-  kwargs, expected, checker = get_ollama_context
+  kwargs, expected, field_checker = get_ollama_context
   is_embedded = True
   instance = llms.OllamaLLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
   fields = instance.get_fields(is_embedded=is_embedded)
+  ignore_keys = ['stream', 'max_retries']
 
   assert isinstance(llm, OllamaEmbeddings)
   assert llm.model == expected['model']
   assert llm.base_url == expected['endpoint']
   assert llm.temperature == expected['temperature']
-  assert checker(fields, expected)
+  assert field_checker(fields, expected, ignores=ignore_keys)
 
 # =============
 # = GeminiLLM =
 # =============
 @pytest.fixture
-def get_gemini_context(get_basellm_arg, mocker):
+def get_gemini_context(get_basellm_arg, check_fields, mocker):
   specific = {
     'location': 'us-central1',
+    'service_account': {'username': 'hogehoge', 'email': 'hoge@example.com'},
   }
-  def llm_field_checker(fields, expected):
-    return all([
-      fields['model'] == expected['model'],
-      fields['temperature'] == expected['temperature'],
-      fields['max_retries'] == expected['max_retries'],
-      fields['stream'] == expected['stream'],
-      fields['location'] == expected['location'],
-    ])
-
-  def embedding_field_checker(fields, expected):
-    ignore_keys = ['temperature', 'stream']
-
-    return all([
-      all([ignore_key not in fields.keys() for ignore_key in ignore_keys]),
-      fields['model'] == expected['model'],
-      fields['max_retries'] == expected['max_retries'],
-      fields['location'] == expected['location'],
-    ])
   # mock
   class DummyCredentials:
     def __init__(self, info):
@@ -627,23 +535,23 @@ def get_gemini_context(get_basellm_arg, mocker):
   mocker.patch('vertexai.language_models.TextEmbeddingModel.from_pretrained', new=DummyPretrainedModel)
   mocker.patch('vertexai.vision_models.MultiModalEmbeddingModel.from_pretrained', new=DummyPretrainedModel)
   # Setup
+  field_checker = check_fields
   kwargs, expected = get_basellm_arg
   kwargs.update(specific)
   expected.update(specific)
 
-  return kwargs, expected, llm_field_checker, embedding_field_checker
+  return kwargs, expected, field_checker
 
 @pytest.mark.chatbot
 @pytest.mark.util
 @pytest.mark.parametrize('model_name', ['gemini', 'chat-bison'])
 def test_check_gemini_chatbot(get_gemini_context, model_name):
   specific = {'model': model_name}
-  service_account = {'username': 'hogehoge', 'email': 'hoge@example.com'}
-  kwargs, expected, llm_checker, _ = get_gemini_context
+  kwargs, expected, field_checker = get_gemini_context
   kwargs.update(specific)
   expected.update(specific)
   is_embedded = False
-  instance = llms.GeminiLLM(**kwargs, service_account=service_account)
+  instance = llms.GeminiLLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
   fields = instance.get_fields(is_embedded=is_embedded)
 
@@ -652,33 +560,34 @@ def test_check_gemini_chatbot(get_gemini_context, model_name):
   assert llm.temperature == expected['temperature']
   assert llm.max_retries == expected['max_retries']
   assert llm.streaming == expected['stream']
-  assert llm_checker(fields, expected)
+  assert field_checker(fields, expected)
 
 @pytest.mark.chatbot
 @pytest.mark.util
 @pytest.mark.parametrize('model_name', ['textembedding-gecko@003', 'multimodalembedding'])
 def test_check_gemini_embedding(get_gemini_context, model_name):
   specific = {'model': model_name}
-  service_account = {'username': 'hogehoge', 'email': 'hoge@example.com'}
-  kwargs, expected, _, embedding_checker = get_gemini_context
+  kwargs, expected, field_checker = get_gemini_context
   kwargs.update(specific)
   expected.update(specific)
   is_embedded = True
-  instance = llms.GeminiLLM(**kwargs, service_account=service_account)
+  instance = llms.GeminiLLM(**kwargs)
   llm = instance.get_llm(is_embedded=is_embedded)
   fields = instance.get_fields(is_embedded=is_embedded)
+  ignore_keys = ['temperature', 'stream']
 
   assert isinstance(llm, VertexAIEmbeddings)
   assert llm.model_name == expected['model']
   assert llm.max_retries == expected['max_retries']
-  assert embedding_checker(fields, expected)
+  assert field_checker(fields, expected, ignores=ignore_keys)
 
 @pytest.mark.chatbot
 @pytest.mark.util
 @pytest.mark.parametrize('is_embedded', [False, True])
 def test_invalid_service_account_gemini(get_gemini_context, is_embedded):
   kwargs = get_gemini_context[0]
-  instance = llms.GeminiLLM(**kwargs, service_account=None)
+  kwargs.update({'service_account': None})
+  instance = llms.GeminiLLM(**kwargs)
 
   with pytest.raises(ValueError) as ex:
     _ = instance.get_llm(is_embedded=is_embedded)

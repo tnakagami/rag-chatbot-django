@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("Chatbot - Thread") %}
+<div class="row justify-content-center p-2">
+</div>
+
+{# Back to previous page #}
+<div class="row justify-content-center my-2 p-2">
+  <div class="col">
+    <a href="{% url 'chatbot:detail_assistant' pk=thread.assistant.pk %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+      {% trans "Back" %}
+    </a>
+  </div>
+</div>
+{% endblock %}

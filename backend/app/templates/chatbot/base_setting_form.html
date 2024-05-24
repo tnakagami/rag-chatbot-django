@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col">
+    <form method="POST" class="p-2">
+      {% csrf_token %}
+
+      {{ form }}
+
+      <div class="mt-1 row">
+        <div class="col">
+          <button type="button" id="modal-trigger-btn" class="btn btn-success w-100 custom-boxshadow-effect" disabled 
+                  data-bs-toggle="modal" data-bs-target="#config-modal">
+            {% trans "Open configuration form" %}
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-1 row row-cols-1 row-cols-md-2 g-2">
+        <div class="col">
+          <button type="submit" class="btn btn-primary w-100 custom-boxshadow-effect">
+            {% trans "Create/Update" %}
+          </button>
+        </div>
+        <div class="col">
+          <a href="{% url 'chatbot:settings' %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+            {% trans "Cancel" %}
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="config-modal" tabindex="-1" aria-labelledby="configuration-label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="modal-title fs-5" id="configuration-label">{% trans "Configuration" %}</p>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="human-readable-config-form"></div>
+      <div class="modal-footer">
+        <div class="row w-100 g-2">
+          <div class="col-12 col-md-6">
+            <button type="button" id="reflect-config" class="btn btn-primary w-100 custom-boxshadow-effect" data-bs-dismiss="modal">
+              {% trans "Reflect" %}
+            </button>
+          </div>
+          <div class="col-12 col-md-6">
+            <button type="button" class="btn btn-secondary w-100 custom-boxshadow-effect" data-bs-dismiss="modal">
+              {% trans "Close" %}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block bodyjs %}
+<script>
+(function () {
+  const init = () => {
+    const typeElement = document.querySelector('#type-id');
+    const reflectConfigBtn = document.querySelector('#reflect-config');
+
+    typeElement.addEventListener('change', async (event) => {
+      const params = {type_id: event.target.value};
+      const query = new URLSearchParams(params);
+      const url = event.target.dataset.url;
+      // Request and response
+      const response = await fetch(`${url}?${query}`, {method: 'GET'});
+      const data = await response.json();
+      // Update modal on/off button status
+      const jsonField = document.querySelector('#config-id');
+      const modalTriggerBtn = document.querySelector('#modal-trigger-btn');
+      const existsConfig = data['config_exists'];
+      jsonField.disabled = !existsConfig;
+      modalTriggerBtn.disabled = !existsConfig;
+      // Reflect form html
+      const configForm = document.querySelector('#human-readable-config-form');
+      configForm.innerHTML = data['config_html_form'];
+      // Update config field
+      if (!existsConfig) {
+        const jsonField = document.querySelector('#config-id');
+        jsonField.value = '';
+      }
+    });
+    reflectConfigBtn.addEventListener('click', async (event) => {
+      const configElements = document.querySelectorAll('.configs');
+      const _config = {};
+
+      for (const element of configElements) {
+        const name = element.dataset.configname;
+        const value = (element.value) ? element.value : '';
+        _config[name] = value;
+      }
+      const jsonField = document.querySelector('#config-id');
+      jsonField.value = JSON.stringify(_config);
+    });
+    typeElement.dispatchEvent(new Event('change'));
+  };
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+{% endblock %}

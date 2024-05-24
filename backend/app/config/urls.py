@@ -19,6 +19,17 @@ from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
+from drf_spectacular.views import (
+  SpectacularAPIView,
+  SpectacularRedocView,
+  SpectacularSwaggerView,
+)
+
+restful_docs =[
+  path('schema/', SpectacularAPIView.as_view(), name='schema'),
+  path('docs/', SpectacularSwaggerView.as_view(url_name='restful:schema'), name='swagger-ui'),
+  path('redoc/', SpectacularRedocView.as_view(url_name='restful:schema'), name='redoc'),
+]
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,6 +38,8 @@ urlpatterns = [
     path('api/v1/', include(('config.drf_urls', 'api'))),
 ] + i18n_patterns(
     path('', include(('account.urls', 'account'))),
+    path('chatbot/', include(('chatbot.urls', 'chatbot'))),
+    path('restful/', include((restful_docs, 'restful'))),
 )
 
 if settings.DEBUG:

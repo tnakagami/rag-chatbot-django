@@ -8,7 +8,12 @@
   {% if not user.is_authenticated %}
     <p>{% trans "Please login from above link." %}</p>
   {% else %}
-    <p class="h3">Logged in</p>
+    <a href="{% url 'chatbot:index' %}" class="card text-decoration-none">
+      <div class="card-body">
+        <p class="h3 card-title">{% trans "Chatbot" %}</p>
+        <p class="card-text">{% trans "Chatbot using RAG" %}</p>
+      </div>
+    </a>
   {% endif %}
   </div>
 </div>
