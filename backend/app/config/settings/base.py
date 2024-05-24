@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.forms',
     'rest_framework',
     'rest_framework_simplejwt',
+    'drf_spectacular',
     'view_breadcrumbs',
     'markdownx',
     'django_bootstrap_icons',
@@ -100,20 +101,27 @@ LOGOUT_REDIRECT_URL = 'account:index'
 
 # define Django REST API
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': {
-        # Authentication is required
+    # Authentication is required
+    'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
-    },
-    'DEFAULT_AUTHENTICATION_CLASSES': {
-        # JWT (JSON Web Token) Authentication
+    ),
+    # JWT (JSON Web Token) Authentication
+    'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    },
+    ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=3),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
     'ROTATE_REFRESH_TOKENS': True,
     'AUTH_HEADER_TYPES': ('JWT',),
+}
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Chatbot using RAG',
+    'DESCRIPTION': 'This application is chatbot using Retrieval-Augmented Generation.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
 # Password validation

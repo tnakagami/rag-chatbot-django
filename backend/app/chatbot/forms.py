@@ -97,6 +97,7 @@ class AgentForm(_BaseModelForm):
   def customize(self, instance, *args, **kwargs):
     agent_type, config = instance.get_config()
     fields = AgentType.get_llm_fields(agent_type, config=config, is_embedded=False)
+    config = {}
 
     for target in fields:
       config.update(target.asdict())
@@ -127,6 +128,7 @@ class EmbeddingForm(_BaseModelForm):
   def customize(self, instance, *args, **kwargs):
     emb_type, config = instance.get_config()
     fields = AgentType.get_llm_fields(emb_type, config=config, is_embedded=True)
+    config = {}
 
     for target in fields:
       config.update(target.asdict())
@@ -157,6 +159,7 @@ class ToolForm(_BaseModelForm):
   def customize(self, instance, *args, **kwargs):
     tool_type, config = instance.get_config()
     fields = ToolType.get_config_field(tool_type, config=config)
+    config = {}
 
     for target in fields:
       config.update(target.asdict())
@@ -183,69 +186,35 @@ class AssistantForm(_BaseModelForm):
   is_interrupt = forms.TypedChoiceField(
     choices=((True, gettext_lazy('Execute action before stopping')), (False, gettext_lazy('Execute no actions'))),
     widget=forms.Select(),
+    required=False,
   )
+
+  def clean(self):
+    cleaned_data = super().clean()
+    agent_pk = cleaned_data.get('agent')
+    embedding_pk = cleaned_data.get('embedding')
+    tool_pks = cleaned_data.get('tools')
+    # Get target model's instances
+    agent = models.Agent.objects.get_or_none(pk=agent_pk)
+    embedding = models.Embedding.objects.get_or_none(pk=embedding_pk)
+    tools = [models.Tool.objects.get_or_none(pk=pk) for pk in tool_pks]
+    judged = [
+      agent.is_owner(self.user) if agent is not None else True,
+      embedding.is_owner(self.user) if embedding is not None else True,
+      all([tool.is_owner(self.user) for tool in tools if tool is not None]),
+    ]
+    is_valid = all(judged)
+    # Check owner of each instance
+    if not is_valid:
+      raise ValidationError(gettext_lazy('Invalid agent, embedding, or tools exist. Please check your selected items.'))
+
+    return cleaned_data
 
   def save(self):
     instance = super().save()
     self.save_m2m()
 
     return instance
-
-# ================
-# = DocumentFile =
-# ================
-class _MultipleFileInput(forms.ClearableFileInput):
-  allow_multiple_selected = True
-class _MultipleFileField(forms.FileField):
-  def __init__(self, *args, **kwargs):
-    kwargs.setdefault('widget', _MultipleFileInput())
-    super().__init__(*args, **kwargs)
-
-  def clean(self, data, initial=None):
-    single_file_clean = super().clean
-
-    if isinstance(data, (list, tuple)):
-      result = [single_file_clean(target, initial) for target in data]
-    else:
-      result = single_file_clean(data, initial)
-
-    return result
-
-def _validate_filename_length(instance):
-  length = len(instance.name)
-  max_len = models.DocumentFile.MAX_FILENAME_LENGTH
-
-  if length > max_len:
-    err = 'filename is too long. (max length: {})'.format(max_len)
-    raise ValidationError(gettext_lazy(err))
-
-def _validate_extension(instance):
-  _, extension = os.path.splitext(instance.name)
-  ext = extension.lower()
-  allowed_extensions = models.DocumentFile.get_valid_extensions()
-
-  if ext not in allowed_extensions:
-    err = '{} is invalid extension. Allowed: {}'.format(ext, ', '.join(allowed_extensions))
-    raise ValidationError(gettext_lazy(err))
-
-class DocumentFileForm(forms.Form):
-  upload_files = _MultipleFileField(
-    label=gettext_lazy('Target documents'),
-    required=True,
-    help_text=gettext_lazy('Allowed extensions: {}'.format(', '.join(models.DocumentFile.get_valid_extensions()))),
-    validators=[_validate_extension, _validate_filename_length],
-    widget=_MultipleFileInput(attrs={'id': 'upload-files-id', 'class': 'form-control'}),
-  )
-
-  def __init__(self, assistant, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.assistant = assistant
-
-  def create_document_files(self):
-    doc_files = self.cleaned_data['upload_files']
-    ids = models.DocumentFile.from_files(self.assistant, doc_files)
-
-    return ids
 
 # ==========
 # = Thread =
@@ -268,6 +237,20 @@ class ThreadForm(forms.ModelForm):
       _classes = field.widget.attrs.get('class', '')
       field.widget.attrs['class'] = f'{_classes} form-control'
       field.widget.attrs['placeholder'] = field.help_text
+
+  def clean(self):
+    if self.assistant is None:
+      raise ValidationError(gettext_lazy('Invalid assistant exist.'))
+
+    cleaned_data = super().clean()
+    docfiles = cleaned_data.get('docfiles', [])
+    valid_files = self.assistant.docfiles.all().values_list('pk', flat=True)
+    is_valid = all([instance.pk in valid_files for instance in docfiles])
+
+    if not is_valid:
+      raise ValidationError(gettext_lazy('Invalid docfiles exist. Please check your selected items.'))
+
+    return cleaned_data
 
   def save(self, *args, **kwargs):
     instance = super().save(commit=False)

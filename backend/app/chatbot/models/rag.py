@@ -20,11 +20,6 @@ class BaseManager(models.Manager):
     except self.model.DoesNotExist:
       return None
 
-  def get_own_items(self, user, field_name='user'):
-    kwargs = {f'{field_name}__pk': user.pk}
-
-    return self.get_queryset().filter(**kwargs).order_by('pk')
-
 class BaseConfig(models.Model):
   name = models.CharField(
     gettext_lazy('Config name'),
@@ -57,7 +52,7 @@ class BaseConfig(models.Model):
   @classmethod
   def get_config_form_args(cls, instance=None, default_type=AgentType.OPENAI):
     if instance is None:
-      type_id, config = default_type, None
+      type_id, config = default_type, {}
     else:
       type_id, config = instance.get_config()
 
@@ -214,8 +209,6 @@ class Assistant(models.Model):
   agent = models.ForeignKey(
     Agent,
     on_delete=models.CASCADE,
-    blank=False,
-    null=False,
     verbose_name=gettext_lazy('Agent used in RAG'),
   )
   embedding = models.ForeignKey(
@@ -231,6 +224,7 @@ class Assistant(models.Model):
   )
   is_interrupt = models.BooleanField(
     gettext_lazy('Interrupt flag in LangGraph workflow'),
+    blank=True,
     default=False,
     help_text=gettext_lazy('If True, Interrupt before the specific node (e.g. "action" node) when the workflow is stopped with human intervention.'),
   )
@@ -273,6 +267,10 @@ class Assistant(models.Model):
 
     return assistant
 
+class DocumentFileManager(BaseManager):
+  def collect_own_files(self, user):
+    return self.get_queryset().filter(assistant__user=user)
+
 class DocumentFile(models.Model):
   MAX_FILENAME_LENGTH = 255
   class Meta:
@@ -292,7 +290,7 @@ class DocumentFile(models.Model):
     help_text=gettext_lazy(f'{MAX_FILENAME_LENGTH} characters or fewer.'),
   )
 
-  objects = BaseManager()
+  objects = DocumentFileManager()
 
   def __str__(self):
     return f'{self.name} ({self.assistant})'
@@ -330,6 +328,10 @@ class DocumentFile(models.Model):
 
     return ids
 
+class ThreadManager(BaseManager):
+  def collect_own_threads(self, user):
+    return self.get_queryset().prefetch_related('docfiles').filter(assistant__user=user)
+
 class Thread(models.Model):
   assistant = models.ForeignKey(
     Assistant,
@@ -350,7 +352,7 @@ class Thread(models.Model):
     verbose_name=gettext_lazy('Document files used in RAG'),
   )
 
-  objects = BaseManager()
+  objects = ThreadManager()
 
   def __str__(self):
     return f'{self.name} ({self.assistant})'

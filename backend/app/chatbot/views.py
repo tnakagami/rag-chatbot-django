@@ -116,9 +116,9 @@ class SettingListView(LoginRequiredMixin, BaseBreadcrumbMixin, TemplateView):
   def get_context_data(self, *args, **kwargs):
     user = self.request.user
     context = super().get_context_data(*args, **kwargs)
-    context['agents'] = models.Agent.objects.get_own_items(user)
-    context['embeddings'] = models.Embedding.objects.get_own_items(user)
-    context['tools'] = models.Tool.objects.get_own_items(user)
+    context['agents'] = user.agent_configs.all()
+    context['embeddings'] = user.embedding_configs.all()
+    context['tools'] = user.tool_configs.all()
 
     return context
 
@@ -231,32 +231,26 @@ class AssistantDeleteView(_CommonDeleteView):
 # ================
 # = DocumentFile =
 # ================
-class DocumentFileCreateView(LoginRequiredMixin, IsOwner, BaseBreadcrumbMixin, FormView):
+class DocumentFileCreateView(LoginRequiredMixin, IsOwner, BaseBreadcrumbMixin, TemplateView):
   raise_exception = True
-  form_class = forms.DocumentFileForm
   template_name = 'chatbot/document_file_form.html'
   crumbs = [
     (gettext_lazy('Chatbot'), reverse_lazy('chatbot:index')),
     (gettext_lazy('Create document file'), ''),
   ]
-  success_url = reverse_lazy('chatbot:index')
 
   def get_object(self):
     pk = self.kwargs.get('assistant_pk')
-    assistant = models.Assistant.objects.get_or_none(pk=pk)
+    instance = models.Assistant.objects.get_or_none(pk=pk)
 
-    return assistant
+    return instance
 
-  def get_form_kwargs(self, *args, **kwargs):
-    kwargs = super().get_form_kwargs(*args, **kwargs)
-    kwargs['assistant'] = self.get_object()
+  def get_context_data(self, *args, **kwargs):
+    context = super().get_context_data(*args, **kwargs)
+    context['docfile_url'] = reverse('api:chatbot:docfile_list')
+    context['assistant_pk'] = self.kwargs.get('assistant_pk')
 
-    return kwargs
-
-  def form_valid(self, form):
-    form.create_document_files()
-
-    return super().form_valid(form)
+    return context
 
 class DocumentFileDeleteView(_CommonDeleteView):
   model = models.DocumentFile

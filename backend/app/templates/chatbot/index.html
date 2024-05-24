@@ -42,14 +42,14 @@
     <div class="row align-items-center mx-2 border {% if forloop.counter > 1 %}border-top-0{% endif %}">
       <div class="col-8 col-md-10 ps-2 pe-0 border-end">
         <a href="{% url 'chatbot:detail_assistant' pk=assistant.pk %}" 
-           class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover">
-          {{ assistant|truncatechars:32 }}
+           class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover text-break">
+          {{ assistant }}
         </a>
         <div class="collapse py-2" id="document-files{{ forloop.counter }}">
           {% for docfile in assistant.docfiles.all %}
           <div class="row align-items-center ms-2 me-0 border border-end-0 {% if forloop.counter > 1 %}border-top-0{% endif %}">
-            <div class="col-10 border-end">
-              {{ docfile|truncatechars:32 }}
+            <div class="col-10 border-end text-break">
+              {{ docfile }}
             </div>
             <div class="col-2 p-1 text-center" data-targetname="{{ docfile }}" data-url="{% url 'chatbot:delete_docfile' pk=docfile.pk %}">
               {% bs_icon 'trash' extra_classes='delete-target-docfile text-danger' %}
@@ -125,7 +125,7 @@
       </div>
       <div class="modal-body">
         <p class="text-danger"><strong>{% trans "May I really delete this record ?" %}</strong></p>
-        <p>{% trans "target" %}: <span id="target-field-name"></span></p>
+        <p>{% trans "target" %}: <span id="target-field-name" class="text-break"></span></p>
       </div>
       <div class="modal-footer">
         <form method="POST" action="" id="delete-form" class="w-100">

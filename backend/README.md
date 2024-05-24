@@ -48,14 +48,14 @@ Run the following commands to reflect translation messages.
 # In the host environment
 docker-compose run --rm -it --entrypoint django-admin makemessages -l ja backend
 #
-# Edit .po files by using your favorite editor (e.g. vim)
+# Edit .po files using your favorite editor (e.g. vim)
 #
 docker-compose run --rm -it --entrypoint django-admin compilemessages backend
 ```
 
 ## Test
 ### Preparations
-In this project, `pytest` and pytest's third packages are used. In particular, `pytest-django` is useful when I develop web applications by using the Django framework.
+In this project, `pytest` and pytest's third packages are used. In particular, `pytest-django` is useful when I develop web applications using the Django framework.
 
 So I prepare `conftest.py` in the top directory of `all_tests`. The details are as follows:
 

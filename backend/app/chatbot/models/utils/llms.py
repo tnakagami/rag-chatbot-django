@@ -22,7 +22,7 @@ from django.utils.translation import gettext_lazy
 @dataclass
 class _BaseLLM:
   model: str = field(default='', metadata={'type': str, 'label': gettext_lazy('model name')})
-  temperature: int = field(default=0, metadata={'type': int, 'label': gettext_lazy('temperature')})
+  temperature: float = field(default=0, metadata={'type': float, 'label': gettext_lazy('temperature')})
   stream: bool = field(default=False, metadata={'type': bool, 'label': gettext_lazy('enable streaming')})
   max_retries: int = field(default=10, metadata={'type': int, 'label': gettext_lazy('max retries')})
   proxy: Union[str, None] = field(default=None, metadata={'type': str, 'label': gettext_lazy('proxy url')})

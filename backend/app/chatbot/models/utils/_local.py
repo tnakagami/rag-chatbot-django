@@ -35,6 +35,9 @@ class LocalField:
   def is_int(self) -> bool:
     return self._judge(int)
   @property
+  def is_float(self) -> bool:
+    return self._judge(float)
+  @property
   def is_bool(self) -> bool:
     return self._judge(bool)
   @property
@@ -66,8 +69,11 @@ class LocalField:
 
     return val
 
+  def get_key(self) -> str:
+    return self.name
+
   def asdict(self) -> dict:
     return dict([self.astuple()])
 
   def astuple(self) -> tuple:
-    return tuple((self.name, self.data))
+    return tuple((self.get_key(), self.data))

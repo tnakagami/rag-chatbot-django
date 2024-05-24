@@ -132,11 +132,12 @@ def mock_call_kay_is_failed(get_kay_retriever_args, mocker):
   'label',
 ], [
   (3, 4, int, 'int data'),
+  (2.5, 1.1, float, 'float data'),
   ('a', 'b', str, 'str data'),
   (True, False, bool, 'bool data'),
   ([3, 'a'], [], list, 'list data'),
   ({'x': 3}, {}, dict, 'dict data'),
-], ids=['is-int', 'is-str', 'is-bool', 'is-list', 'is-dict'])
+], ids=['is-int', 'is-float', 'is-str', 'is-bool', 'is-list', 'is-dict'])
 def test_check_valid_field(value, default, data_type, label):
   name = 'test'
   field = _local.LocalField(
@@ -154,6 +155,7 @@ def test_check_valid_field(value, default, data_type, label):
   assert field.default == default
   assert type(field.data_type()) == type(field.data)
   assert field.label == label
+  assert field.get_key() == name
   assert _tuple_data[0] == name
   assert _tuple_data[1] == value
   assert name in _dict_data.keys()
@@ -200,21 +202,24 @@ def test_check_unexpected_value(value, default, data_type, expected):
 @pytest.mark.private
 def test_check_data_type():
   int_field = _local.LocalField(data_type=int)
+  float_field = _local.LocalField(data_type=float)
   bool_field = _local.LocalField(data_type=bool)
   str_field = _local.LocalField(data_type=str)
   list_field = _local.LocalField(data_type=list)
   dict_field = _local.LocalField(data_type=dict)
 
   assert int_field.is_int
+  assert float_field.is_float
   assert bool_field.is_bool
   assert str_field.is_str
   assert list_field.is_list
   assert dict_field.is_dict
-  assert all([not getattr(int_field, prop_name)  for prop_name in [          'is_bool', 'is_str', 'is_list', 'is_dict',]])
-  assert all([not getattr(bool_field, prop_name) for prop_name in ['is_int',            'is_str', 'is_list', 'is_dict',]])
-  assert all([not getattr(str_field, prop_name)  for prop_name in ['is_int', 'is_bool',           'is_list', 'is_dict',]])
-  assert all([not getattr(list_field, prop_name) for prop_name in ['is_int', 'is_bool', 'is_str',            'is_dict',]])
-  assert all([not getattr(dict_field, prop_name) for prop_name in ['is_int', 'is_bool', 'is_str', 'is_list',           ]])
+  assert all([not getattr(int_field, prop_name)   for prop_name in [          'is_float', 'is_bool', 'is_str', 'is_list', 'is_dict',]])
+  assert all([not getattr(float_field, prop_name) for prop_name in ['is_int',             'is_bool', 'is_str', 'is_list', 'is_dict',]])
+  assert all([not getattr(bool_field, prop_name)  for prop_name in ['is_int', 'is_float',            'is_str', 'is_list', 'is_dict',]])
+  assert all([not getattr(str_field, prop_name)   for prop_name in ['is_int', 'is_float', 'is_bool',           'is_list', 'is_dict',]])
+  assert all([not getattr(list_field, prop_name)  for prop_name in ['is_int', 'is_float', 'is_bool', 'is_str',            'is_dict',]])
+  assert all([not getattr(dict_field, prop_name)  for prop_name in ['is_int', 'is_float', 'is_bool', 'is_str', 'is_list',           ]])
 
 @pytest.mark.chatbot
 @pytest.mark.private

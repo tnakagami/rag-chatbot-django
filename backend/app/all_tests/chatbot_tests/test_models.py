@@ -20,7 +20,7 @@ import chatbot.models.utils.tools as tools
 from langchain_community.document_loaders import Blob
 from chatbot.models.utils.vectorstore import DistanceStrategy, CustomVectorStore
 from django.db import NotSupportedError
-from django.core.files.uploadedfile import SimpleUploadedFile, TemporaryUploadedFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.exceptions import ValidationError
 from django.utils.timezone import make_aware
 from datetime import datetime
@@ -488,7 +488,7 @@ def test_check_baseconfig(get_common_data):
   assert instance.config == config
   assert default_type_id == AgentType.OPENAI
   assert target == config
-  assert default_config is None
+  assert all([isinstance(default_config, dict), len(default_config) == 0])
   assert collected is not None
   assert doesnot_exist is None
 
@@ -523,7 +523,7 @@ def test_check_agent(mocker, get_common_data):
   assert default_instance.agent_type == AgentType.OPENAI.value
   assert str(specific_agent) == f'{name} ({AgentType.AZURE.label})'
   assert default_type_id == AgentType.OPENAI
-  assert default_config is None
+  assert all([isinstance(default_config, dict), len(default_config) == 0])
   assert instance_type_id == _agent_type
   assert instance_config == config
   assert specific_agent.user.pk == user.pk
@@ -567,7 +567,7 @@ def test_check_embedding(mocker, get_common_data):
   assert default_instance.distance_strategy == Embedding.DistanceType.COSINE.value
   assert str(specific_embedding) == f'{name} ({AgentType.AZURE.label})'
   assert default_type_id == AgentType.OPENAI
-  assert default_config is None
+  assert all([isinstance(default_config, dict), len(default_config) == 0])
   assert instance_type_id == _emb_type
   assert instance_config == config
   assert default_ds == DistanceStrategy.COSINE
@@ -607,7 +607,7 @@ def test_check_tool(mocker, get_common_data):
   assert default_instance.tool_type == ToolType.RETRIEVER.value
   assert str(specific_tool) == f'{name} ({ToolType.DDG_SEARCH.label})'
   assert default_type_id == ToolType.RETRIEVER
-  assert default_config is None
+  assert all([isinstance(default_config, dict), len(default_config) == 0])
   assert instance_type_id == _tool_type
   assert instance_config == config
   assert spec_val == ret_val
@@ -620,35 +620,13 @@ def test_check_tool(mocker, get_common_data):
 @pytest.mark.chatbot
 @pytest.mark.model
 @pytest.mark.django_db
-@pytest.mark.parametrize('model_class,factory_class', [
-  (Agent, factories.AgentFactory),
-  (Embedding, factories.EmbeddingFactory),
-  (Tool, factories.ToolFactory),
-], ids=['agent-own-items', 'embedding-own-items', 'tool-own-items'])
-def test_check_own_items_queryset(model_class, factory_class):
-  first_user, second_user = factories.UserFactory.create_batch(2)
-  models_1st_user = factory_class.create_batch(7, user=first_user)
-  models_2nd_user = factory_class.create_batch(8, user=second_user)
-  ids_1st_models = [instance.pk for instance in models_1st_user]
-  ids_2nd_models = [instance.pk for instance in models_2nd_user]
-  qs_1st_owner = model_class.objects.get_own_items(first_user)
-  qs_2nd_owner = model_class.objects.get_own_items(second_user)
-
-  assert len(qs_1st_owner) == len(models_1st_user)
-  assert len(qs_2nd_owner) == len(models_2nd_user)
-  assert all([pk in ids_1st_models for pk in qs_1st_owner.values_list('pk', flat=True)])
-  assert all([pk in ids_2nd_models for pk in qs_2nd_owner.values_list('pk', flat=True)])
-
-@pytest.mark.chatbot
-@pytest.mark.model
-@pytest.mark.django_db
 @pytest.mark.parametrize('handler', [
   lambda user: factories.AgentFactory(user=user),
   lambda user: factories.EmbeddingFactory(user=user),
   lambda user: factories.ToolFactory(user=user),
   lambda user: factories.AssistantFactory(user=user),
-  lambda user: factories.DocumentFileFactory(factories.AssistantFactory(user=user)),
-  lambda user: factories.ThreadFactory(factories.AssistantFactory(user=user)),
+  lambda user: factories.DocumentFileFactory(assistant=factories.AssistantFactory(user=user)),
+  lambda user: factories.ThreadFactory(assistant=factories.AssistantFactory(user=user)),
 ], ids=['agent-owner', 'embedding-owner', 'tool-owner', 'assistant-owner', 'docfile-owner', 'thread-owner'])
 def test_check_owner(handler):
   owner, other_user = factories.UserFactory.create_batch(2)
@@ -697,12 +675,13 @@ def test_check_assistant(mocker, num_tools):
     new_callable=mocker.PropertyMock,
     return_value=lambda *args, **kwargs: targets[0] if num_tools == 1 else targets,
   )
-  _tool_records = factories.ToolFactory.create_batch(num_tools) if num_tools > 0 else []
+  user = factories.UserFactory()
+  _tool_records = factories.ToolFactory.create_batch(num_tools, user=user) if num_tools > 0 else []
   assistant = Assistant.objects.create(
-    user=factories.UserFactory(),
+    user=user,
     name=name,
-    agent=factories.AgentFactory(),
-    embedding=factories.EmbeddingFactory(),
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
   )
   assistant.tools.add(*_tool_records)
   ret_items = assistant.get_assistant()
@@ -732,11 +711,12 @@ def test_check_get_assistant_method_of_assistant(mocker, docfile_ids, expected_s
     new_callable=mocker.PropertyMock,
     return_value=lambda args, *other, **kwargs: args.docfile_ids,
   )
-  _tool_records = factories.ToolFactory()
+  user = factories.UserFactory()
+  _tool_records = factories.ToolFactory(user=user)
   assistant = Assistant.objects.create(
-    user=factories.UserFactory(),
-    agent=factories.AgentFactory(),
-    embedding=factories.EmbeddingFactory(),
+    user=user,
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
   )
   assistant.tools.add(_tool_records)
   ret_items = assistant.get_assistant(docfile_ids=docfile_ids)
@@ -751,14 +731,15 @@ def test_check_collection_with_docfiles_method_of_assistant():
   specific_assistant = factories.AssistantFactory.create_batch(
     2,
     user=user,
-    agent=factories.AgentFactory(),
-    embedding=factories.EmbeddingFactory(),
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
   )
+  other = factories.UserFactory()
   assistants = factories.AssistantFactory.create_batch(
     3,
-    user=factories.UserFactory(),
-    agent=factories.AgentFactory(),
-    embedding=factories.EmbeddingFactory(),
+    user=other,
+    agent=factories.AgentFactory(user=other),
+    embedding=factories.EmbeddingFactory(user=other),
   )
   for _assistant in assistants:
     _ = factories.DocumentFileFactory.create_batch(5, assistant=_assistant)
@@ -795,6 +776,31 @@ def test_check_valid_extensions():
 @pytest.mark.chatbot
 @pytest.mark.model
 @pytest.mark.django_db
+def test_check_collect_own_files_method_of_documentfile():
+  user, other = factories.UserFactory.create_batch(2)
+  specific_assistant = factories.AssistantFactory(
+    user=user,
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
+  )
+  assistants = factories.AssistantFactory.create_batch(
+    3,
+    user=other,
+    agent=factories.AgentFactory(user=other),
+    embedding=factories.EmbeddingFactory(user=other),
+  )
+  for _assistant in assistants:
+    _ = factories.DocumentFileFactory.create_batch(5, assistant=_assistant)
+  _ = factories.DocumentFileFactory(assistant=specific_assistant)
+  qs_user = DocumentFile.objects.collect_own_files(user)
+  qs_other = DocumentFile.objects.collect_own_files(other)
+
+  assert qs_user.count() == 1
+  assert qs_other.count() == (len(assistants) * 5)
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
 def test_check_thread():
   thread_name = 'test-thread'
   assistant_name = 'dummy-assistant'
@@ -804,6 +810,63 @@ def test_check_thread():
   )
 
   assert str(thread) == f'{thread_name} ({assistant_name})'
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize([
+  'num_assistant',
+  'max_docfiles_of_each_assistant',
+  'each_file_pairs', # this list length is equal the number of threads
+  'expected_num_threads',
+  'expected_selected_total_docfiles',
+], [
+  (1, 5, {0: [[0, 2, 3, 4]]}, 1, 4),
+  (2, 3, {0: [[0]], 1: [[], [1, 2]]}, 3, 3),
+], ids=['single-assistant', 'multi-assitants'])
+def test_check_collect_own_threads_method_of_thread(
+  num_assistant,
+  max_docfiles_of_each_assistant,
+  each_file_pairs,
+  expected_num_threads,
+  expected_selected_total_docfiles,
+):
+  user, other = factories.UserFactory.create_batch(2)
+  # Create assistants
+  user_assistants = factories.AssistantFactory.create_batch(
+    num_assistant,
+    user=user,
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
+  )
+  other_assistant = factories.AssistantFactory(
+    user=other,
+    agent=factories.AgentFactory(user=other),
+    embedding=factories.EmbeddingFactory(user=other),
+  )
+  # Create document files
+  user_docfiles = [
+    factories.DocumentFileFactory.create_batch(max_docfiles_of_each_assistant, assistant=assistant)
+    for assistant in user_assistants
+  ]
+  other_docfiles = factories.DocumentFileFactory.create_batch(2, assistant=other_assistant)
+  # Create threads
+  for idx, docfile_list in each_file_pairs.items():
+    assistant = user_assistants[idx]
+    _local_docfile = user_docfiles[idx]
+
+    for indices in docfile_list:
+      target_docfiles = [_file.pk for count, _file in enumerate(_local_docfile) if count in indices]
+      thread = factories.ThreadFactory(assistant=assistant)
+      thread.docfiles.add(*target_docfiles)
+
+  _, thread = factories.ThreadFactory.create_batch(2, assistant=other_assistant)
+  thread.docfiles.add(*[_file.pk for _file in other_docfiles])
+  # Check
+  targets = Thread.objects.collect_own_threads(user)
+
+  assert targets.count() == expected_num_threads
+  assert sum([thread.docfiles.all().count() for thread in targets]) == expected_selected_total_docfiles
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -880,7 +943,7 @@ def test_check_similarity_search_method(get_normalizer, distance_strategy, calc_
   sorted_indices = np.argsort(sort_direction * distance)
   # Collect expected primary keys
   exact_ids = ids[sorted_indices]
-  # Calculate distance by using the Django manager's method
+  # Calculate distance using the Django manager's method
   queryset = EmbeddingStore.objects.similarity_search_with_distance_by_vector(exact_vector, distance_strategy, assistant_id=assistant.pk)
   estimated_ids = np.array(queryset.values_list('pk', flat=True))
 

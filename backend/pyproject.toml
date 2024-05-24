@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "app"
 version = "0.1.0"
-description = "Backend application by using Django"
+description = "Backend application using Django"
 authors = ["tnakagami"]
 readme = "README.md"
 
@@ -10,6 +10,7 @@ python = ">=3.11,<3.12"
 django = "^4.2.11"
 djangorestframework = "^3.15.1"
 djangorestframework-simplejwt = "^5.3.1"
+drf-spectacular = "^0.27.2"
 uvicorn = "^0.29.0"
 python-magic = "^0.4.27"
 beautifulsoup4 = "^4.12.3"
@@ -30,7 +31,7 @@ wikipedia = "^1.4.0"
 fireworks-ai = "^0.14.0"
 lxml = "^5.2.2"
 xmltodict = "^0.13.0"
-unstructured = { extras = ["doc", "docx"], version = "^0.13.2", optional = true }
+unstructured = { extras = ["doc", "docx"], version = "^0.14.2", optional = true }
 pdfminer-six = "^20231228"
 pgvector = "^0.2.5"
 psycopg = "^3.1.18"
