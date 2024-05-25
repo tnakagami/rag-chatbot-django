@@ -191,17 +191,14 @@ class AssistantForm(_BaseModelForm):
 
   def clean(self):
     cleaned_data = super().clean()
-    agent_pk = cleaned_data.get('agent')
-    embedding_pk = cleaned_data.get('embedding')
-    tool_pks = cleaned_data.get('tools')
     # Get target model's instances
-    agent = models.Agent.objects.get_or_none(pk=agent_pk)
-    embedding = models.Embedding.objects.get_or_none(pk=embedding_pk)
-    tools = [models.Tool.objects.get_or_none(pk=pk) for pk in tool_pks]
+    agent = cleaned_data.get('agent', None)
+    embedding = cleaned_data.get('embedding', None)
+    tools = cleaned_data.get('tools', [])
     judged = [
       agent.is_owner(self.user) if agent is not None else True,
       embedding.is_owner(self.user) if embedding is not None else True,
-      all([tool.is_owner(self.user) for tool in tools if tool is not None]),
+      all([tool.is_owner(self.user) for tool in tools]),
     ]
     is_valid = all(judged)
     # Check owner of each instance

@@ -20,8 +20,7 @@ from view_breadcrumbs import (
   UpdateBreadcrumbMixin,
   DetailBreadcrumbMixin,
 )
-from . import forms
-from . import models
+from . import forms, models
 
 class JsonResponseMixin:
   raise_exception = True
@@ -231,13 +230,14 @@ class AssistantDeleteView(_CommonDeleteView):
 # ================
 # = DocumentFile =
 # ================
-class DocumentFileCreateView(LoginRequiredMixin, IsOwner, BaseBreadcrumbMixin, TemplateView):
+class DocumentFileView(LoginRequiredMixin, IsOwner, BaseBreadcrumbMixin, TemplateView):
   raise_exception = True
   template_name = 'chatbot/document_file_form.html'
   crumbs = [
     (gettext_lazy('Chatbot'), reverse_lazy('chatbot:index')),
     (gettext_lazy('Create document file'), ''),
   ]
+  http_method_names = ['get']
 
   def get_object(self):
     pk = self.kwargs.get('assistant_pk')

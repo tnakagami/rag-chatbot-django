@@ -569,6 +569,7 @@ def get_specific_assistant():
 @pytest.mark.drf
 @pytest.mark.django_db
 @pytest.mark.parametrize('num,ext', [
+  (0, 'txt'),
   (1, 'txt'),
   (2, 'pdf'),
   (3, 'docx'),
