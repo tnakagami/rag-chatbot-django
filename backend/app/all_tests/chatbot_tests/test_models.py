@@ -684,13 +684,13 @@ def test_check_assistant(mocker, num_tools):
     embedding=factories.EmbeddingFactory(user=user),
   )
   assistant.tools.add(*_tool_records)
-  ret_items = assistant.get_assistant()
+  executor = assistant.get_executor()
   expected_retval = len(_tool_records) * num_tools
 
   assert str(assistant) == name
   assert 'You are a helpful assistant.' in assistant.system_message
   assert not assistant.is_interrupt
-  assert len(ret_items) == expected_retval
+  assert len(executor) == expected_retval
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -700,7 +700,7 @@ def test_check_assistant(mocker, num_tools):
   (2, 0),
   ([1,2,3], 3),
 ], ids=['no-docfile-ids', 'no-list-of-dcofile-ids', 'docfile-ids-exist'])
-def test_check_get_assistant_method_of_assistant(mocker, docfile_ids, expected_size):
+def test_check_get_executor_method_of_assistant(mocker, docfile_ids, expected_size):
   mocker.patch(
     'chatbot.models.rag.Agent.get_executor',
     new_callable=mocker.PropertyMock,
@@ -719,9 +719,9 @@ def test_check_get_assistant_method_of_assistant(mocker, docfile_ids, expected_s
     embedding=factories.EmbeddingFactory(user=user),
   )
   assistant.tools.add(_tool_records)
-  ret_items = assistant.get_assistant(docfile_ids=docfile_ids)
+  executor = assistant.get_executor(docfile_ids=docfile_ids)
 
-  assert len(ret_items) == expected_size
+  assert len(executor) == expected_size
 
 @pytest.mark.chatbot
 @pytest.mark.model

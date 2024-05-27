@@ -28,6 +28,28 @@ def login_process(client, django_db_blocker):
 @pytest.mark.chatbot
 @pytest.mark.view
 @pytest.mark.django_db
+def test_jwt_get_access(login_process):
+  client, _ = login_process
+  url = reverse('chatbot:token')
+  response = client.get(url)
+  output = response.json()
+
+  assert response.status_code == status.HTTP_200_OK
+  assert 'token' in output.keys()
+
+@pytest.mark.chatbot
+@pytest.mark.view
+@pytest.mark.django_db
+def test_invalid_access_for_jwt(client):
+  url = reverse('chatbot:token')
+  response = client.get(url)
+
+  assert response.status_code == status.HTTP_302_FOUND
+  assert response['Location'] == reverse('account:login')
+
+@pytest.mark.chatbot
+@pytest.mark.view
+@pytest.mark.django_db
 def test_index_get_access(login_process):
   client, _ = login_process
   url = reverse('chatbot:index')

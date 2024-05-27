@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy
-from .models import Agent, Embedding, Tool, Assistant, Thread
+from .models import Agent, Embedding, Tool, Assistant, DocumentFile, Thread
 from .models.rag import EmbeddingStore, LangGraphCheckpoint
 
 @admin.register(Agent)
@@ -41,6 +41,16 @@ class AssistantAdmin(admin.ModelAdmin):
   list_select_related = ('user', 'agent', 'embedding')
   list_filter = ('user',)
   search_fields = ('name', 'user')
+  ordering = ('pk',)
+
+@admin.register(DocumentFile)
+class DocumentFileAdmin(admin.ModelAdmin):
+  model = DocumentFile
+  fields = ['name', 'assistant']
+  list_display = ('name', 'assistant')
+  list_select_related = ('assistant',)
+  list_filter = ('name', 'assistant')
+  search_fields = ('name', 'assistant')
   ordering = ('pk',)
 
 @admin.register(Thread)

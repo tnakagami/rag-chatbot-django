@@ -7,17 +7,22 @@
   <div class="col">
     <div class="row p-2">
       <div class="col">
+        <div class="text-danger" id="errs"></div>
+      </div>
+    </div>
+    <div class="row p-2">
+      <div class="col">
         <div class="border border-2 border-dark-subtle" id="drop-area">
           <div class="text-center py-2 fs-2">{% trans "Please drop the files here or" %}</div>
           <div class="px-4 py-2">
-            <input type="file" class="form-control" id="upload-files" multiple>
+            <input type="file" class="form-control" name="upload_files" id="upload-files" multiple>
           </div>
         </div>
       </div>
     </div>
     <div class="mt-1 row row-cols-1 row-cols-md-2 g-2 p-2">
       <div class="col">
-        <button type="button" id="send" data-url="{{ docfile_url }}" data-redirect="{% url 'chatbot:index' %}"
+        <button type="button" id="send" data-url="{{ docfile_url }}" data-tokenlink="{{ token_url }}" data-redirect="{% url 'chatbot:index' %}"
           class="btn btn-primary w-100 custom-boxshadow-effect">
           <span id="is-ready">{% trans "Create" %}</span>
           <div id="is-sending" class="d-none">
@@ -45,6 +50,14 @@
   const colorLists = ['text-bg-light', 'opacity-25'];
   const eraseClass = 'd-none';
 
+  const getToken = async (url) => {
+    const response = await fetch(url, {method: 'GET'});
+    const data = await response.json();
+    const token = data.token;
+
+    return token;
+  };
+
   // In the case of dragover
   dropArea.addEventListener('dragover', (event) => {
     event.stopPropagation();
@@ -69,17 +82,22 @@
     filefield.files = event.dataTransfer.files;
   }, false);
   // Add click event
-  sendBtn.addEventListener('click', (event) => {
+  sendBtn.addEventListener('click', async (event) => {
     event.preventDefault();
+    const errField = document.querySelector('#errs');
 
     if (filefield.files.length == 0) {
+      errField.textContent = '{% trans "Please select target files at least one file." %}';
+
       return;
     }
 
     const url = sendBtn.dataset.url;
+    const tokenUrl = sendBtn.dataset.tokenlink;
     const redirectUrl = sendBtn.dataset.redirect;
     const isReadyField = document.querySelector('#is-ready');
     const isSending = document.querySelector('#is-sending');
+    errField.innerHTML = '';
     dropArea.classList.add(...colorLists);
     filefield.classList.add(...colorLists);
     filefield.disabled = true;
@@ -89,23 +107,46 @@
     // Create form data
     const form = new FormData();
     form.append('assistant_pk', {{ assistant_pk }});
-    form.append('upload_files', Array.from(filefield.files));
+    for (const _file of filefield.files) {
+      form.append('upload_files', _file);
+    }
     const csrfToken = "{{ csrf_token }}";
-    // Execute fetch function
-    fetch(url, {
-      method: 'POST',
-      body: form,
-      headers: {'X-CSRFToken': csrfToken},
-    }).then(() => {
+    const token = await getToken(tokenUrl);
+    // Call fetch function and execute post-process
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: form,
+        headers: {
+          'X-CSRFToken': csrfToken,
+          Authorization: `JWT ${token}`,
+        },
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        const arr = [];
+        const targets = data.upload_files;
+        Object.keys(targets).forEach((key) => {
+          const detail = targets[key];
+          const err = `<li><strong class="pe-2">[${key}]</strong><span>${detail}</span></li>`;
+          arr.push(err);
+        });
+        const message = (arr ? `<ul>${arr.join('\n')}</ul>` : 'Invalid request');
+
+        throw new Error(message);
+      }
       window.location.href = redirectUrl;
-    }).catch(() => {
+    }
+    catch (error) {
+      errField.innerHTML = error.message;
       dropArea.classList.remove(...colorLists);
       filefield.classList.remove(...colorLists);
       filefield.disabled = false;
       sendBtn.disabled = false;
       isReadyField.classList.remove(eraseClass);
       isSending.classList.add(eraseClass);
-    });
+    }
   });
 })();
 </script>

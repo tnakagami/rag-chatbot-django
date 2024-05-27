@@ -3,7 +3,9 @@ from . import views
 
 urlpatterns = [
   path('', views.Index.as_view(), name='index'),
-  path('settings/', views.SettingListView.as_view(), name='settings'),
+  path('tasks', views.TaskListView.as_view(), name='tasks'),
+  path('settings', views.SettingListView.as_view(), name='settings'),
+  path('settings/token', views.JsonWebTokenView.as_view(), name='token'),
   # Agent
   path('settings/config/agent', views.AgentConfigFormCollection.as_view(), name='collect_agent_config'),
   path('settings/create/agent', views.AgentCreateView.as_view(), name='create_agent'),

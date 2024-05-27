@@ -19,11 +19,9 @@ services:
     image: rag-backend
     container_name: rag-backend
     environment:
-      - LANGUAGE_CODE=ja
       - TZ=Asia/Tokyo
-      - DB_HOST=database
-      - DB_PORT=5432
     env_file:
+      - ./env_files/backend/docker.env
       - ./env_files/backend/.env
       - ./env_files/database/.env
     networks:
@@ -33,13 +31,60 @@ services:
       - ./backend/app:/opt/app
       - ./backend/pyproject.toml:/opt/pyproject.toml
       - ./backend/bashrc:/opt/home/.bashrc:ro
+      - storage:/data
     ports:
       - 7654:8000
     depends_on:
+      redis:
+        condition: service_started
       database:
         condition: service_healthy
     command:
       - --reload
+    restart: always
+    logging: *json-logging
+
+  celery:
+    image: rag-backend
+    container_name: rag-celery
+    environment:
+      - TZ=Asia/Tokyo
+    env_file:
+      - ./env_files/backend/docker.env
+      - ./env_files/backend/.env
+      - ./env_files/database/.env
+    networks:
+      - rag-app
+    working_dir: /opt
+    volumes:
+      - ./celery/entrypoint.sh:/opt/entrypoint.sh:ro
+      - ./backend/app:/opt/app:ro
+      - ./backend/bashrc:/opt/home/.bashrc:ro
+      - storage:/data:ro
+    depends_on:
+      redis:
+        condition: service_started
+      backend:
+        condition: service_started
+    entrypoint: /opt/entrypoint.sh
+    restart: always
+    logging: *json-logging
+
+  redis:
+    build:
+      context: ./redis
+      dockerfile: Dockerfile
+      args:
+        # architecture: amd64, arm32v5, arm64v8, i386, and so on.
+        - ARCHITECTURE=arm64v8
+    image: rag-redis
+    container_name: rag-redis
+    networks:
+      - rag-app
+    volumes:
+      - ./redis/redis.conf://usr/local/etc/redis/redis.conf:ro
+    expose:
+      - 6379
     restart: always
     logging: *json-logging
 
@@ -71,3 +116,5 @@ networks:
 volumes:
   database:
     name: rag-database
+  storage:
+    name: rag-storage

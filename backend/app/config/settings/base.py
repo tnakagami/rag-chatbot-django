@@ -37,14 +37,17 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'django.contrib.humanize',
     'django.contrib.staticfiles',
     'django.forms',
+    'channels',
     'rest_framework',
     'rest_framework_simplejwt',
     'drf_spectacular',
     'view_breadcrumbs',
     'markdownx',
     'django_bootstrap_icons',
+    'django_celery_results',
     # apps
     'account.apps.AccountConfig',
     'chatbot.apps.ChatbotConfig',
@@ -88,13 +91,41 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
+# Define redis setting
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [(os.getenv('REDIS_HOST', 'redis'), 6379)],
+        },
+    },
+}
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': '{host}://{host}:6379'.format(host=os.getenv('REDIS_HOST', 'redis')),
+    }
+}
+
+# Define Celery configuration options
+CELERY_TIMEZONE = os.getenv('TZ', 'UTC')
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_CACHE_BACKEND = 'django-cache'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_EXTENDED = True
+
 # Define custom user model
 AUTH_USER_MODEL = 'account.User'
 AUTHENTICATION_BACKENDS = [
     'account.backends.EmailBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
-LOGIN_URL = 'account:index'
+LOGIN_URL = 'account:login'
 LOGIN_REDIRECT_URL = 'account:index'
 LOGOUT_URL = 'account:logout'
 LOGOUT_REDIRECT_URL = 'account:index'
@@ -112,7 +143,7 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=3),
+    'ACCESS_TOKEN_LIFETIME': timedelta(seconds=90),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
     'ROTATE_REFRESH_TOKENS': True,
     'AUTH_HEADER_TYPES': ('JWT',),
@@ -203,6 +234,7 @@ LANGUAGES = [
 
 STATIC_URL = 'static/'
 STATIC_ROOT = '/static/django'
+MEDIA_ROOT = '/data'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

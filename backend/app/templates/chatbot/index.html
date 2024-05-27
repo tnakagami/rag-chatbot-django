@@ -30,6 +30,23 @@
   </div>
 </div>
 
+<div class="row justify-content-center p-2">
+  <div class="col">
+    <div class="row">
+      <div class="col">
+        <p class="h4">{% trans "Background tasks" %}</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col">
+        <a href="{% url 'chatbot:tasks' %}" class="btn btn-outline-dark w-100 custom-boxshadow-effect">
+          {% trans "Check own tasks" %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
 {# Assistant list #}
 <div class="row justify-content-center p-2">
   <div class="col">

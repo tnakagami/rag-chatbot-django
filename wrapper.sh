@@ -53,6 +53,8 @@ while [ -n "$1" ]; do
       else
         docker-compose logs database
         docker-compose logs backend
+        docker-compose logs celery
+        docker-compose logs redis
       fi
       shift
       ;;

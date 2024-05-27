@@ -1,3 +1,4 @@
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse
@@ -93,6 +94,18 @@ class _CommonDeleteView(LoginRequiredMixin, IsOwner, DeleteView):
   success_url = None
   http_method_names = ['post']
 
+class JsonWebTokenView(LoginRequiredMixin, JsonResponseMixin, View):
+  http_method_names = ['get']
+
+  def get_context_data(self, *args, **kwargs):
+    refresh = RefreshToken.for_user(self.request.user)
+    access_token = str(refresh.access_token)
+    context = {
+      'token': access_token
+    }
+
+    return context
+
 class Index(LoginRequiredMixin, ListBreadcrumbMixin, ListView):
   model = models.Assistant
   template_name = 'chatbot/index.html'
@@ -104,6 +117,29 @@ class Index(LoginRequiredMixin, ListBreadcrumbMixin, ListView):
     user = self.request.user
 
     return self.model.objects.collection_with_docfiles(user=user)
+
+class TaskListView(LoginRequiredMixin, BaseBreadcrumbMixin, TemplateView):
+  template_name = 'chatbot/tasks.html'
+  crumbs = [
+    (gettext_lazy('Chatbot'), reverse_lazy('chatbot:index')),
+    (gettext_lazy('Tasks'), ''),
+  ]
+
+  def get_context_data(self, *args, **kwargs):
+    user = self.request.user
+    context = super().get_context_data(*args, **kwargs)
+    tasks = models.Assistant.objects.collect_own_tasks(user=user)
+    context['tasks'] = [
+      {
+        'task_id': record.task_id,
+        'name': record.task_name,
+        'status': record.status,
+        'created': models.convert_timezone(record.date_created),
+      }
+      for record in tasks
+    ]
+
+    return context
 
 class SettingListView(LoginRequiredMixin, BaseBreadcrumbMixin, TemplateView):
   template_name = 'chatbot/settings.html'
@@ -248,6 +284,7 @@ class DocumentFileView(LoginRequiredMixin, IsOwner, BaseBreadcrumbMixin, Templat
   def get_context_data(self, *args, **kwargs):
     context = super().get_context_data(*args, **kwargs)
     context['docfile_url'] = reverse('api:chatbot:docfile_list')
+    context['token_url'] = reverse('chatbot:token')
     context['assistant_pk'] = self.kwargs.get('assistant_pk')
 
     return context

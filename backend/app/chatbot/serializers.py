@@ -4,7 +4,10 @@ from rest_framework import serializers
 from rest_framework.relations import MANY_RELATION_KWARGS, ManyRelatedField
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer, OpenApiExample
 from django.utils.translation import gettext_lazy
+from django.core.files import File
+from django.core.files.storage import FileSystemStorage
 from . import models
+from . import tasks
 from .models.agents import AgentType, ToolType
 
 class PrimaryKeyRelatedFieldEx(serializers.PrimaryKeyRelatedField):
@@ -412,14 +415,44 @@ class AssistantSerializer(serializers.ModelSerializer):
 @extend_schema_serializer(
   examples=[
     OpenApiExample(
+      name='Collect own tasks',
+      request_only=True,
+      response_only=False,
+    )
+  ]
+)
+class AssistantTaskSerializer(serializers.BaseSerializer):
+  def __init__(self, user, *args, **kwargs):
+    super().__init__(data={'tasks': models.Assistant.objects.collect_own_tasks(user=user)})
+
+  def to_internal_value(self, data):
+    return data
+
+  def to_representation(self, validated_data):
+    queryset = validated_data.get('tasks')
+    
+    tasks = [
+      {
+        'task_name': record.task_name,
+        'status': record.status,
+        'date_created': models.convert_timezone(record.date_created, is_string=True),
+      }
+      for record in queryset
+    ]
+
+    return {'tasks': tasks}
+
+@extend_schema_serializer(
+  examples=[
+    OpenApiExample(
       name='Pseudo document file',
       value={
-        'name': 'pseudo-document-file',
         'assistant_pk': 1,
         'upload_files': [
           'sample1.txt',
           'sample2.pdf',
           'sample3.html',
+          'sample4.docx',
         ],
       },
       request_only=True,
@@ -443,21 +476,38 @@ class DocumentFileSerializer(serializers.ModelSerializer):
     model = models.DocumentFile
     fields = ('pk', 'assistant', 'assistant_pk', 'upload_files')
     read_only_fields = ['pk']
+    MAX_TOTAL_FILESIZE = 10 * 1024 * 1024
+
+  def _convert_human_readable_filesize(size, suffix='B'):
+    for unit in ('', 'Ki', 'Mi', 'Gi'):
+      if abs(size) < 1024.0:
+        out = f'{size:3.1f}{unit}{suffix}'
+        break
+      size /= 1024.0
+    else:
+      out = f'{size:.1f}Ti{suffix}'
 
   def validate_upload_files(self, upload_files):
-    errors = []
+    errors = {}
+    total_size = 0
 
     for target_field in upload_files:
-      _name, extension = os.path.splitext(target_field.name)
+      total_size += target_field.size
+      name, extension = os.path.splitext(target_field.name)
       ext = extension.lower()
       allowed_extensions = models.DocumentFile.get_valid_extensions()
 
       if ext not in allowed_extensions:
-        err = '{name}{ext} is invalid extension. Allowed: {allowed_exts}'.format(name=_name, ext=ext, allowed_exts=', '.join(allowed_extensions))
-        errors.append(err)
+        allowed_exts = ', '.join(allowed_extensions)
+        errors[name] = gettext_lazy(f'Invalid extension ({ext}). Allowed: {allowed_exts}')
+
+    if total_size > self.Meta.MAX_TOTAL_FILESIZE:
+      max_size = self._convert_human_readable_filesize(self.Meta.MAX_TOTAL_FILESIZE)
+      current_size = self._convert_human_readable_filesize(total_size)
+      errors['file_size'] = gettext_lazy(f'Max file size is {max_size}. Current size: {current_size}')
 
     if len(errors) > 0:
-      raise serializers.ValidationError(gettext_lazy('\n'.join(errors)))
+      raise serializers.ValidationError(errors)
 
     return upload_files
 
@@ -472,18 +522,24 @@ class DocumentFileSerializer(serializers.ModelSerializer):
 
     return data
 
-  def create(self, validated_data):
+  def save(self, **kwargs):
+    validated_data = {**self.validated_data, **kwargs}
     assistant = validated_data['assistant']
     filefields = validated_data.get('upload_files', [])
+    user = kwargs.get('user')
+    # Preparation
+    storage = FileSystemStorage()
+    files = []
+
+    for target in filefields:
+      name = f'assistant{assistant.pk}_{target.name}'
+      storage.save(name, File(target))
+      files += [{'path': storage.path(name), 'name': target.name}]
+
     # Execute embedding process
-    ids = self.Meta.model.from_files(assistant, filefields)
-
-    if len(ids) > 0:
-      out = self.Meta.model.objects.get_or_none(pk=int(ids[0]))
-    else:
-      out = []
-
-    return out
+    result = tasks.embedding_process.delay(assistant.pk, files).then(on_success=tasks.on_success_of_embedding_process)
+    # Update database record
+    assistant.set_task_result(result.task_id, user)
 
 @extend_schema_serializer(
   examples=[

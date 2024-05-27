@@ -187,6 +187,17 @@ class AssistantViewSet(ModelViewSet):
   def perform_create(self, serializer):
     serializer.save(user=self.request.user)
 
+  @extend_schema(
+    description=gettext_lazy('Get tasks'),
+    request=serializers.AssistantTaskSerializer,
+  )
+  @action(methods=['get'], detail=False, permission_classes=[IsAuthenticated], url_path='tasks', url_name='tasks')
+  def get_tasks(self, request, pk=None):
+    serializer = serializers.AssistantTaskSerializer(user=self.request.user)
+    serializer.is_valid()
+
+    return Response(serializer.data)
+
   def get_queryset(self):
     return self.request.user.assistants.all()
 
@@ -202,6 +213,18 @@ class DocumentFileViewSet(
   parser_claasses = [MultiPartParser, FormParser]
   serializer_class = serializers.DocumentFileSerializer
   queryset = models.DocumentFile.objects.none()
+
+  # Customize create method
+  def create(self, request, *args, **kwargs):
+    serializer = self.get_serializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    self.perform_create(serializer)
+    headers = self.get_success_headers(serializer.data)
+
+    return Response(serializer.data, status=status.HTTP_202_ACCEPTED, headers=headers)
+
+  def perform_create(self, serializer):
+    serializer.save(user=self.request.user)
 
   def get_queryset(self):
     return models.DocumentFile.objects.collect_own_files(self.request.user)

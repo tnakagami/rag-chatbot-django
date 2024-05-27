@@ -610,7 +610,7 @@ def test_drf_docfile_creation(drf_list_create_settings, get_specific_assistant, 
   )
   total = models.DocumentFile.objects.all().count()
 
-  assert response.status_code == status.HTTP_201_CREATED
+  assert response.status_code == status.HTTP_202_ACCEPTED
   assert total == num
 
 @pytest.mark.chatbot
