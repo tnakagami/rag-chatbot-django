@@ -43,9 +43,10 @@ def test_jwt_get_access(login_process):
 def test_invalid_access_for_jwt(client):
   url = reverse('chatbot:token')
   response = client.get(url)
+  expected = '{}?next={}'.format(reverse('account:login'), url)
 
   assert response.status_code == status.HTTP_302_FOUND
-  assert response['Location'] == reverse('account:login')
+  assert response['Location'] == expected
 
 @pytest.mark.chatbot
 @pytest.mark.view
@@ -53,6 +54,23 @@ def test_invalid_access_for_jwt(client):
 def test_index_get_access(login_process):
   client, _ = login_process
   url = reverse('chatbot:index')
+  response = client.get(url)
+
+  assert response.status_code == status.HTTP_200_OK
+
+@pytest.mark.chatbot
+@pytest.mark.view
+@pytest.mark.django_db
+def test_get_task_list(login_process):
+  client, user = login_process
+  assistant = factories.AssistantFactory(
+    user=user,
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
+  )
+  for task in factories.TaskResultFactory.create_batch(3):
+    assistant.set_task_result(task.task_id, user.pk)
+  url = reverse('chatbot:tasks')
   response = client.get(url)
 
   assert response.status_code == status.HTTP_200_OK

@@ -24,12 +24,14 @@ mkdir -p ${LOG_DIR}
 celery multi start \
        --app=config --workdir=${WORKDIR} \
        worker -l INFO \
-       --pidfile="${PID_DIR}/%n.pid" \
-       --logfile="${LOG_DIR}/%n%I.log"
+       --pidfile="${PID_DIR}/celeryd-%n.pid" \
+       --logfile="${LOG_DIR}/celeryd-%n%I.log"
 
 while [ ${is_running} -eq 1 ]; do
   sleep 1
 done
 
 # Finalize
-celery multi stopwait worker --pidfile="${PID_DIR}/%n.pid"
+celery multi stop worker \
+       --pidfile="${PID_DIR}/celeryd-%n.pid" \
+       --logfile="${LOG_DIR}/celeryd-%n%I.log"

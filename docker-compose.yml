@@ -60,7 +60,7 @@ services:
       - ./celery/entrypoint.sh:/opt/entrypoint.sh:ro
       - ./backend/app:/opt/app:ro
       - ./backend/bashrc:/opt/home/.bashrc:ro
-      - storage:/data:ro
+      - storage:/data
     depends_on:
       redis:
         condition: service_started
@@ -79,10 +79,11 @@ services:
         - ARCHITECTURE=arm64v8
     image: rag-redis
     container_name: rag-redis
+    privileged: true
     networks:
       - rag-app
     volumes:
-      - ./redis/redis.conf://usr/local/etc/redis/redis.conf:ro
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     expose:
       - 6379
     restart: always

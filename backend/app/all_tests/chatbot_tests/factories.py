@@ -3,6 +3,8 @@ from factory.fuzzy import FuzzyChoice, FuzzyText, BaseFuzzyAttribute, random
 from faker import Factory as FakerFactory
 from django.utils import timezone
 from all_tests.account_tests.factories import UserFactory, _clip
+from django_celery_results.models import TaskResult
+from celery import states
 from chatbot.models.rag import (
   Agent,
   Embedding,
@@ -71,6 +73,14 @@ class ToolFactory(factory.django.DjangoModelFactory):
   config = {}
   tool_type = FuzzyChoice(tool_types)
 
+class TaskResultFactory(factory.django.DjangoModelFactory):
+  class Meta:
+    model = TaskResult
+
+  task_id = factory.Sequence(lambda idx: f'task{idx}')
+  task_name = factory.LazyAttribute(lambda instance: f'task{instance.task_id}')
+  status = states.PENDING
+
 class AssistantFactory(factory.django.DjangoModelFactory):
   class Meta:
     model = Assistant
@@ -96,6 +106,7 @@ class DocumentFileFactory(factory.django.DjangoModelFactory):
 
   assistant = factory.SubFactory(AssistantFactory)
   name = factory.LazyAttribute(lambda instance: _clip(faker.name(), 255))
+  is_active = False
 
 class ThreadFactory(factory.django.DjangoModelFactory):
   class Meta:

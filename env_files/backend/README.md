@@ -8,6 +8,7 @@ DJANGO_WWW_VHOST=www.example.com,sub.example2.com
 DJANGO_SUPERUSER_NAME=superuser
 DJANGO_SUPERUSER_EMAIL=superuser@backend.local
 DJANGO_SUPERUSER_PASSWORD=superuserpassword
+CELERY_WORKER_PREFETCH_MULTIPLIER=4
 ```
 
 A function of each environment variable is given below.
@@ -20,3 +21,4 @@ A function of each environment variable is given below.
 | DJANGO_SUPERUSER_NAME | Username of superuser |
 | DJANGO_SUPERUSER_EMAIL | Email of superuser |
 | DJANGO_SUPERUSER_PASSWORD | Password of superuser |
+| CELERY_WORKER_PREFETCH_MULTIPLIER | How many messages to prefetch at a time multiplied by the number of concurrent processes |

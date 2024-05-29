@@ -204,7 +204,6 @@ class AssistantViewSet(ModelViewSet):
 @extend_schema(tags=[gettext_lazy('DocumentFile')])
 class DocumentFileViewSet(
   ListModelMixin,
-  CreateModelMixin,
   DestroyModelMixin,
   GenericViewSet,
 ):
@@ -219,9 +218,8 @@ class DocumentFileViewSet(
     serializer = self.get_serializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     self.perform_create(serializer)
-    headers = self.get_success_headers(serializer.data)
 
-    return Response(serializer.data, status=status.HTTP_202_ACCEPTED, headers=headers)
+    return Response([], status=status.HTTP_202_ACCEPTED)
 
   def perform_create(self, serializer):
     serializer.save(user=self.request.user)

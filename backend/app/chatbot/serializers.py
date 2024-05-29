@@ -6,8 +6,7 @@ from drf_spectacular.utils import extend_schema_field, extend_schema_serializer,
 from django.utils.translation import gettext_lazy
 from django.core.files import File
 from django.core.files.storage import FileSystemStorage
-from . import models
-from . import tasks
+from . import models, tasks
 from .models.agents import AgentType, ToolType
 
 class PrimaryKeyRelatedFieldEx(serializers.PrimaryKeyRelatedField):
@@ -478,7 +477,7 @@ class DocumentFileSerializer(serializers.ModelSerializer):
     read_only_fields = ['pk']
     MAX_TOTAL_FILESIZE = 10 * 1024 * 1024
 
-  def _convert_human_readable_filesize(size, suffix='B'):
+  def _convert_human_readable_filesize(self, size, suffix='B'):
     for unit in ('', 'Ki', 'Mi', 'Gi'):
       if abs(size) < 1024.0:
         out = f'{size:3.1f}{unit}{suffix}'
@@ -486,6 +485,8 @@ class DocumentFileSerializer(serializers.ModelSerializer):
       size /= 1024.0
     else:
       out = f'{size:.1f}Ti{suffix}'
+
+    return out
 
   def validate_upload_files(self, upload_files):
     errors = {}
@@ -526,20 +527,17 @@ class DocumentFileSerializer(serializers.ModelSerializer):
     validated_data = {**self.validated_data, **kwargs}
     assistant = validated_data['assistant']
     filefields = validated_data.get('upload_files', [])
-    user = kwargs.get('user')
+    user = validated_data.get('user')
     # Preparation
     storage = FileSystemStorage()
     files = []
 
     for target in filefields:
-      name = f'assistant{assistant.pk}_{target.name}'
-      storage.save(name, File(target))
-      files += [{'path': storage.path(name), 'name': target.name}]
+      saved_name = storage.save(target.name, File(target))
+      files += [{'path': storage.path(saved_name), 'name': target.name, 'saved_name': saved_name}]
 
     # Execute embedding process
-    result = tasks.embedding_process.delay(assistant.pk, files).then(on_success=tasks.on_success_of_embedding_process)
-    # Update database record
-    assistant.set_task_result(result.task_id, user)
+    tasks.embedding_process.delay(assistant.pk, files, user.pk)
 
 @extend_schema_serializer(
   examples=[

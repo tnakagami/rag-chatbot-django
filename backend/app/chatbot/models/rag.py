@@ -1,7 +1,7 @@
 import logging
-import time
 from typing import Dict, List, Union, Tuple
 from zoneinfo import ZoneInfo
+from celery import states
 from django.conf import settings
 from django.db import models, NotSupportedError
 from django.utils.translation import gettext_lazy
@@ -22,7 +22,7 @@ def convert_timezone(target_datatime, is_string=False):
   output = target_datatime.astimezone(timezone)
 
   if is_string:
-    output = output.strftime('%Y-%m-%d %H:%m:%S.%f')
+    output = output.strftime('%Y-%m-%d %H:%M:%S.%f')
 
   return output
 
@@ -201,16 +201,16 @@ class AssistantManager(BaseManager):
   def collect_own_tasks(self, **kwargs):
     user = kwargs.get('user', None)
     assistant = kwargs.get('assistant', None)
-    params = {
-      'user': user,
-      'assistant': assistant,
-    }
 
     if user is None and assistant is None:
       raise NotSupportedError
     # Collect user's tasks
-    option = ','.join([f'{key}={instance.pk}' for key, instance in params.items() if instance is not None])
-    queryset = TaskResult.objects.filter(meta__icontains=option)
+    params = {
+      'user': user,
+      'assistant': assistant,
+    }
+    content = ','.join([f'{key}={instance.pk}' for key, instance in params.items() if instance is not None])
+    queryset = TaskResult.objects.exclude(status=states.SUCCESS).filter(task_kwargs__icontains=content)
 
     return queryset
 
@@ -296,24 +296,19 @@ class Assistant(models.Model):
 
     return executor
 
-  def set_task_result(self, task_id, user):
+  def set_task_result(self, task_id, user_pk):
     assistant_pk = self.pk
-    user_pk = user.pk
-
-    while True:
-      try:
-        task = TaskResult.objects.get(task_id=task_id)
-        break
-      except TaskResult.DoesNotExist:
-        time.sleep(0.1)
-
+    task = TaskResult.objects.get_task(task_id)
     task.task_name = f'embedding process ({self})'
-    task.meta = f'user={user_pk},assistant={assistant_pk}'
+    task.task_kwargs = f"{{'info': 'user={user_pk},assistant={assistant_pk}'}}"
     task.save()
 
 class DocumentFileManager(BaseManager):
   def collect_own_files(self, user):
-    return self.get_queryset().filter(assistant__user=user)
+    return self.get_queryset().filter(assistant__user=user, is_active=True)
+
+  def active(self):
+    return self.filter(is_active=True)
 
 class DocumentFile(models.Model):
   MAX_FILENAME_LENGTH = 255
@@ -332,6 +327,12 @@ class DocumentFile(models.Model):
     max_length=MAX_FILENAME_LENGTH,
     blank=True,
     help_text=gettext_lazy(f'{MAX_FILENAME_LENGTH} characters or fewer.'),
+  )
+  is_active = models.BooleanField(
+    gettext_lazy('Document status'),
+    blank=True,
+    default=False,
+    help_text=gettext_lazy('If True, the embedding process is finished.'),
   )
 
   objects = DocumentFileManager()
@@ -360,6 +361,7 @@ class DocumentFile(models.Model):
       instance = cls.objects.create(
         assistant=assistant,
         name=field.name,
+        is_active=False,
       )
 
       try:
@@ -369,6 +371,9 @@ class DocumentFile(models.Model):
         blob = runnable.convert_input2blob(field)
         # Create embedding vector from blob data
         current_ids = runnable.invoke(blob, docfile_id=instance.pk)
+        # Update document status
+        instance.is_active = True
+        instance.save()
         ids.extend(current_ids)
       except Exception as ex:
         g_logger.warn(f'DocumentFile[from_files]{ex}')

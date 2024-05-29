@@ -1,22 +1,11 @@
-import logging
-from celery import shared_task, Task
+from celery import shared_task
 from django.core.files import File
 from django.core.files.storage import FileSystemStorage
-from django_celery_results.models import TaskResult
 from pathlib import Path
 from . import models
 
-g_logger = logging.getLogger(__name__)
-
-def on_success_of_embedding_process(retval, task_id, args, kwargs):
-  try:
-    task = TaskResult.objects.get(task_id=task_id)
-    task.delete()
-  except Exception as ex:
-    g_logger.warn(f'Task({task_id}) cannot be deleted.')
-
-@shared_task
-def embedding_process(assistant_pk, files):
+@shared_task(bind=True)
+def embedding_process(self, assistant_pk, files, user_pk):
   storage = FileSystemStorage()
   filefields = []
 
@@ -26,11 +15,16 @@ def embedding_process(assistant_pk, files):
     filefields += [File(path_info.open(mode='rb'), name=name)]
 
   assistant = models.Assistant.objects.get_or_none(pk=assistant_pk)
+  # Update database record
+  assistant.set_task_result(self.request.id, user_pk)
+  # Execute embedding process
   ids = models.DocumentFile.from_files(assistant, filefields)
+  # Delete stored files
+  for field, target in zip(filefields, files):
+    saved_name = target['saved_name']
 
-  for target in filefields:
-    if not target.closed:
-      target.close()
-    storage.delete(target.name)
+    if not field.closed:
+      field.close()
+    storage.delete(saved_name)
 
   return ids

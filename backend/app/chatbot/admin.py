@@ -46,11 +46,11 @@ class AssistantAdmin(admin.ModelAdmin):
 @admin.register(DocumentFile)
 class DocumentFileAdmin(admin.ModelAdmin):
   model = DocumentFile
-  fields = ['name', 'assistant']
-  list_display = ('name', 'assistant')
+  fields = ['name', 'assistant', 'is_active']
+  list_display = ('name', 'assistant', 'is_active')
   list_select_related = ('assistant',)
-  list_filter = ('name', 'assistant')
-  search_fields = ('name', 'assistant')
+  list_filter = ('name', 'assistant', 'is_active')
+  search_fields = ('name', 'assistant', 'is_active')
   ordering = ('pk',)
 
 @admin.register(Thread)

@@ -2,6 +2,7 @@ import pytest
 from chatbot.models.utils.ingest import IngestBlobRunnable
 from chatbot.models.agents import AgentArgs, ToolArgs, AgentType, ToolType
 from chatbot.models.rag import (
+  convert_timezone,
   BaseConfig,
   Agent,
   Embedding,
@@ -19,11 +20,14 @@ import chatbot.models.utils.executors as executors
 import chatbot.models.utils.tools as tools
 from langchain_community.document_loaders import Blob
 from chatbot.models.utils.vectorstore import DistanceStrategy, CustomVectorStore
+from celery import states
 from django.db import NotSupportedError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.exceptions import ValidationError
 from django.utils.timezone import make_aware
-from datetime import datetime
+from django_celery_results.models import TaskResult
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from . import factories
 
 class PseudoLLM:
@@ -77,6 +81,28 @@ class DummyToolInstanceWrapper:
 class DummyToolListWrapper(DummyToolInstanceWrapper):
   def get_tools(self):
     return [PseudoTool(self.tool_name), PseudoTool(self.tool_name)]
+
+# ====================
+# = Global functions =
+# ====================
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.parametrize([
+  'this_timezone',
+  'target',
+  'is_string',
+  'expected',
+], [
+  ('UTC', datetime(2020,1,2,10,0,0, tzinfo=timezone.utc), False, datetime(2020,1,2,10,0,0, tzinfo=ZoneInfo('UTC'))),
+  ('UTC', datetime(2020,1,2,10,0,0, tzinfo=timezone.utc), True, '2020-01-02 10:00:00.000000'),
+  ('Asia/Tokyo', datetime(2020,1,2,10,0,0, tzinfo=timezone.utc), False, datetime(2020,1,2,19,0,0, tzinfo=ZoneInfo('Asia/Tokyo'))),
+  ('Asia/Tokyo', datetime(2020,1,2,10,0,0, tzinfo=timezone.utc), True, '2020-01-02 19:00:00.000000'),
+], ids=['to-utc-datetime', 'to-utc-string', 'to-asia-tokyo-datetime', 'to-asia-tokyo-string'])
+def test_check_convert_timezone_function(settings, this_timezone, target, is_string, expected):
+  settings.TIME_ZONE = this_timezone
+  output = convert_timezone(target, is_string=is_string)
+
+  assert output == expected
 
 # ==========
 # = Agents =
@@ -151,7 +177,7 @@ def test_check_tooltype(mocker, tool_type, tool_name, dummy_class):
 @pytest.mark.model
 @pytest.mark.parametrize([
   'tool_type',
-  'expeceted_tool',
+  'expected_tool',
 ], [
   (ToolType.RETRIEVER, tools.RetrievalTool),
   (ToolType.ACTION_SERVER, tools.ActionServerTool),
@@ -181,11 +207,11 @@ def test_check_tooltype(mocker, tool_type, tool_name, dummy_class):
   'you-search-tool',
   'wikipedia-tool',
 ])
-def test_check_property_of_tooltype(tool_type, expeceted_tool):
+def test_check_property_of_tooltype(tool_type, expected_tool):
   tool_id = tool_type.value
   instance = ToolType(tool_id)
 
-  assert type(instance._tool_type) == type(expeceted_tool)
+  assert type(instance._tool_type) == type(expected_tool)
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -254,8 +280,8 @@ def test_check_agenttype(mocker, agent_type, agent_name, app_prefix, dummy_llm_t
 @pytest.mark.model
 @pytest.mark.parametrize([
   'agent_type',
-  'expeceted_llm',
-  'expeceted_executor',
+  'expected_llm',
+  'expected_executor',
 ], [
   (AgentType.OPENAI, llms.OpenAILLM, executors.ToolExecutor),
   (AgentType.AZURE, llms.AzureOpenAILLM, executors.ToolExecutor),
@@ -273,12 +299,12 @@ def test_check_agenttype(mocker, agent_type, agent_name, app_prefix, dummy_llm_t
   'ollama-llm',
   'gemini-llm',
 ])
-def test_check_property_of_agenttype(agent_type, expeceted_llm, expeceted_executor):
+def test_check_property_of_agenttype(agent_type, expected_llm, expected_executor):
   agent_id = agent_type.value
   instance = AgentType(agent_id)
 
-  assert type(instance._llm_type) == type(expeceted_llm)
-  assert type(instance._executor_type) == type(expeceted_executor)
+  assert type(instance._llm_type) == type(expected_llm)
+  assert type(instance._executor_type) == type(expected_executor)
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -726,6 +752,24 @@ def test_check_get_executor_method_of_assistant(mocker, docfile_ids, expected_si
 @pytest.mark.chatbot
 @pytest.mark.model
 @pytest.mark.django_db
+def test_check_set_task_result_method_of_assistant():
+  user = factories.UserFactory()
+  assistant = factories.AssistantFactory(
+    user=user,
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
+  )
+  _task = factories.TaskResultFactory()
+  task_id = _task.task_id
+  assistant.set_task_result(task_id, user.pk)
+  instance = TaskResult.objects.get_task(task_id)
+  expected = f"{{'info': 'user={user.pk},assistant={assistant.pk}'}}"
+
+  assert instance.task_kwargs == expected
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
 def test_check_collection_with_docfiles_method_of_assistant():
   user = factories.UserFactory()
   specific_assistant = factories.AssistantFactory.create_batch(
@@ -751,6 +795,53 @@ def test_check_collection_with_docfiles_method_of_assistant():
   assert only_one_qs.count() == 1
   assert qs_of_specific_user.count() == len(specific_assistant)
   assert all_qs.count() == (len(specific_assistant) + len(assistants))
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize('task_lists,expected_counts', [
+  ([2], [2, 2, 2]),
+  ([3, 2], [3, 5, 3]),
+  ([4, 1, 5], [4, 10, 4]),
+], ids=['single-assistant', 'double-assistants', 'triple-assistants'])
+def test_check_collect_own_tasks_method_of_assistant(task_lists, expected_counts):
+  # expected_counts: [total tasks for assistant, total tasks for user, total tasks for assistant and user]
+  user, other = factories.UserFactory.create_batch(2)
+  assistants_for_user = factories.AssistantFactory.create_batch(
+    len(task_lists),
+    user=user,
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
+  )
+  assistant_for_other = factories.AssistantFactory(
+    user=other,
+    agent=factories.AgentFactory(user=other),
+    embedding=factories.EmbeddingFactory(user=other),
+  )
+  # Create user tasks
+  for num, _assistant in zip(task_lists, assistants_for_user):
+    for task in factories.TaskResultFactory.create_batch(num):
+      _assistant.set_task_result(task.task_id, user.pk)
+    task = factories.TaskResultFactory(status=states.SUCCESS)
+    _assistant.set_task_result(task.task_id, user.pk)
+  # Create other tasks
+  for task in factories.TaskResultFactory.create_batch(3):
+    assistant_for_other.set_task_result(task.task_id, other.pk)
+
+  total_tasks_for_assistant = Assistant.objects.collect_own_tasks(assistant=assistants_for_user[0]).count()
+  total_tasks_for_user = Assistant.objects.collect_own_tasks(user=user).count()
+  total_tasks_for_both = Assistant.objects.collect_own_tasks(user=user, assistant=assistants_for_user[0]).count()
+
+  assert total_tasks_for_assistant == expected_counts[0]
+  assert total_tasks_for_user == expected_counts[1]
+  assert total_tasks_for_both == expected_counts[2]
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+def test_check_invalid_arguments_for_collect_own_tasks_method():
+  with pytest.raises(NotSupportedError):
+    _ = Assistant.objects.collect_own_tasks()
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -789,14 +880,48 @@ def test_check_collect_own_files_method_of_documentfile():
     agent=factories.AgentFactory(user=other),
     embedding=factories.EmbeddingFactory(user=other),
   )
-  for _assistant in assistants:
-    _ = factories.DocumentFileFactory.create_batch(5, assistant=_assistant)
-  _ = factories.DocumentFileFactory(assistant=specific_assistant)
+  active_statuses = [False, True, True]
+  for _assistant, is_active in zip(assistants, active_statuses):
+    _ = factories.DocumentFileFactory.create_batch(5, assistant=_assistant, is_active=is_active)
+  _ = factories.DocumentFileFactory(assistant=specific_assistant, is_active=True)
   qs_user = DocumentFile.objects.collect_own_files(user)
   qs_other = DocumentFile.objects.collect_own_files(other)
 
   assert qs_user.count() == 1
-  assert qs_other.count() == (len(assistants) * 5)
+  assert qs_other.count() == (active_statuses.count(True) * 5)
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.parametrize('count_assistant', [False, True], ids=['count-all-documents', 'count-specific-assistant'])
+def test_check_active_method_of_documentfile(count_assistant):
+  user, other = factories.UserFactory.create_batch(2)
+  assistant_for_user = factories.AssistantFactory(
+    user=user,
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
+  )
+  assistant_for_other = factories.AssistantFactory(
+    user=other,
+    agent=factories.AgentFactory(user=other),
+    embedding=factories.EmbeddingFactory(user=other),
+  )
+  active_for_user = [False, True, True, False, False]
+  active_for_other = [True, False]
+
+  for is_active in active_for_user:
+    _ = factories.DocumentFileFactory(assistant=assistant_for_user, is_active=is_active)
+  for is_active in active_for_other:
+    _ = factories.DocumentFileFactory(assistant=assistant_for_other, is_active=is_active)
+
+  if count_assistant:
+    expected = active_for_user.count(True)
+    total = assistant_for_user.docfiles.active().count()
+  else:
+    expected = active_for_user.count(True) + active_for_other.count(True)
+    total = DocumentFile.objects.active().count()
+
+  assert total == expected
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -810,6 +935,17 @@ def test_check_thread():
   )
 
   assert str(thread) == f'{thread_name} ({assistant_name})'
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+def test_check_get_executor_method_of_thread(mocker):
+  expected = 3
+  mocker.patch('chatbot.models.rag.Assistant.get_executor', return_value=expected)
+  thread = factories.ThreadFactory()
+  output = thread.get_executor()
+
+  assert output == expected
 
 @pytest.mark.chatbot
 @pytest.mark.model
@@ -1009,11 +1145,18 @@ def test_check_similarity_search_method_with_docfile_ids(get_normalizer, max_fil
 @pytest.mark.chatbot
 @pytest.mark.model
 @pytest.mark.django_db
-@pytest.mark.parametrize('is_raise,expected', [
-  (False, 2),
-  (True, 0),
-], ids=['not-raise-exception', 'raise-exception'])
-def test_check_from_files_method_of_document_file(mocker, is_raise, expected):
+@pytest.mark.parametrize('is_open,is_raise,expected', [
+  (False, False, 2),
+  (False, True, 0),
+  (True, False, 2),
+  (True, True, 0),
+], ids=[
+  'file-is-not-open-and-not-raise-exception',
+  'file-is-not-open-and-raise-exception',
+  'file-is-open-and-not-raise-exception',
+  'file-is-open-and-raise-exception',
+])
+def test_check_from_files_method_of_document_file(mocker, is_open, is_raise, expected):
   class DummyIngest:
     def __init__(self, *args, **kwargs):
       pass
@@ -1024,6 +1167,23 @@ def test_check_from_files_method_of_document_file(mocker, is_raise, expected):
         raise Exception('error')
 
       return [1]
+
+  class CustomUploadedFile(SimpleUploadedFile):
+    def __init__(self, *args, **kwargs):
+      super().__init__(*args, **kwargs)
+      self._closed = False
+      self.mode = 'rb'
+
+    @property
+    def closed(self):
+      return self._closed
+
+    @closed.setter
+    def closed(self, is_closed):
+      self._closed = is_closed
+
+    def open(self, *args, **kwargs):
+      return self
 
   mocker.patch('chatbot.models.rag.IngestBlobRunnable', new=DummyIngest)
   config = {
@@ -1041,9 +1201,14 @@ def test_check_from_files_method_of_document_file(mocker, is_raise, expected):
     )
   )
   files = [
-    SimpleUploadedFile('sample1.txt', b'This is a sample text.'),
-    SimpleUploadedFile('sample2.pdf', b'%PDF%%EOF'),
+    CustomUploadedFile('sample1.txt', b'This is a sample text.'),
+    CustomUploadedFile('sample2.pdf', b'%PDF%%EOF'),
   ]
+
+  if not is_open:
+    for _file in files:
+      _file.closed = not is_open
+
   out = DocumentFile.from_files(assistant, files)
   queryset = DocumentFile.objects.all()
 

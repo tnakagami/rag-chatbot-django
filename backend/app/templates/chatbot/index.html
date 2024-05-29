@@ -63,7 +63,7 @@
           {{ assistant }}
         </a>
         <div class="collapse py-2" id="document-files{{ forloop.counter }}">
-          {% for docfile in assistant.docfiles.all %}
+          {% for docfile in assistant.docfiles.active %}
           <div class="row align-items-center ms-2 me-0 border border-end-0 {% if forloop.counter > 1 %}border-top-0{% endif %}">
             <div class="col-10 border-end text-break">
               {{ docfile }}
