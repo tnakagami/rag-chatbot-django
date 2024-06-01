@@ -13,8 +13,15 @@ class InputMessageValidationError(Exception):
   pass
 
 class _ChatController:
-  def __init__(self, app):
+  def __init__(self, app, pk):
     self.app = app
+    self.thread_id = pk
+
+  def is_stream(self):
+    return app._is_streaming
+
+  def _formatter(self, event_type: str, data: Any) -> Dict[str, Any]:
+    return {'event': event_type, 'data': data}
 
   async def _astream_state(self, inputs: Union[Sequence[AnyMessage], Dict[str, Any]]):
     root_run_id: Optional[str] = None
@@ -67,16 +74,31 @@ class _ChatController:
       g_logger.error(f'ChatController[validate]{err_msg}')
       raise InputMessageValidationError(err_msg)
 
+  async def aget_thread_state(self) -> Dict[str, Any]:
+    config = {
+      'configurable': {
+        'thread_id': self.thread_id,
+      }
+    }
+    # state: the instance of langgraph.pregel.types.StateSnapshot class
+    snapshot = await self.app.aget_state(config)
+    state = {
+      'values': snapshot.values,
+      'next': snapshot.next,
+    }
+
+    return self._formatter('history', state)
+
   async def ainvoke(self, message: Union[Sequence[AnyMessage], Dict[str, Any]]) -> Dict[str, Any]:
     try:
       self._validate(message)
       result = await self.app.ainvoke(message)
     except InputMessageValidationError as ex:
-      result = {'event': 'error', 'data': [str(ex)]}
+      result = self._formatter('error', [str(ex)])
     except Exception as ex:
       err_msg = str(ex)
       g_logger.error(f'ChatController[ainvoke]{err_msg}')
-      result = {'event': 'error', 'data': [err_msg]}
+      result = self._formatter('error', [err_msg])
 
     return result
 
@@ -87,17 +109,17 @@ class _ChatController:
       async for chunk in self._astream_state(message):
         if isinstance(chunk, str):
           # For example, the matched chunk is `run_id`.
-          yield {'event': 'metadata', 'data': [chunk]}
+          yield self._formatter('metadata', [chunk])
         else:
-          yield {'event': 'data', 'data': [message_chunk_to_message(target) for target in chunk]}
+          yield self._formatter('data', [message_chunk_to_message(target) for target in chunk])
     except InputMessageValidationError as ex:
-      yield {'event': 'error', 'data': [str(ex)]}
+      yield self._formatter('error', [str(ex)])
     except Exception as ex:
       err_msg = str(ex)
       g_logger.error(f'ChatController[astream]{err_msg}')
-      yield {'event': 'error', 'data': [err_msg]}
+      yield self._formatter('error', [err_msg])
 
-    yield {'event': 'end', 'data': []}
+    yield self._formatter('end', [])
 
 # ============
 # = Consumer =
@@ -119,7 +141,7 @@ class ThreadConsumer(AsyncJsonWebsocketConsumer):
         await self.accept()
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         executor = await database_sync_to_async(self.thread.get_executor)()
-        g_controllers[self.group_name] = _ChatController(app=executor)
+        g_controllers[self.group_name] = _ChatController(app=executor, pk=pk)
 
     except Exception as ex:
       raise Exception(ex)
@@ -129,28 +151,37 @@ class ThreadConsumer(AsyncJsonWebsocketConsumer):
     await self.close()
     del g_controllers[self.group_name]
 
+  async def get_history(self, controller, **kwargs):
+    response = await controller.aget_thread_state()
+    await self.callback(response)
+
+  async def send_message(self, controller, message, **kwargs):
+    if controller.is_stream():
+      async for response in controller.astream(message):
+        await self.callback(response)
+    else:
+      response = await controller.ainvoke(message)
+      await self.callback(response)
+
   # Receive message from websocket
   async def reveive_json(self, content):
+    command = content.pop('command')
+    controller = g_controllers.get(self.group_name)
+    # The function list to execute command
+    handlers = {
+      'get_history': self.get_history,
+      'send_message': self.send_message,
+    }
+
     try:
-      is_stream = content['stream']
-      message = content['message']
-      controller = g_controllers.get(self.group_name)
-      await self.callback(controller, message, is_stream=is_stream)
+      await handlers[command](controller, **content)
     except Exception as ex:
       raise Exception(ex)
 
-  async def callback(self, controller, message, is_stream=False):
+  async def callback(self, response):
     # Set this class's method to send the response
-    base = {'type': 'send_response'}
-
-    if is_stream:
-      async for response in controller.astream(message):
-        response.update(base)
-        await self.channel_layer.group_send(self.group_name, response)
-    else:
-      response = await controller.ainvoke(message)
-      response.update(base)
-      await self.channel_layer.group_send(self.group_name, response)
+    response.update({'type': 'send_response'})
+    await self.channel_layer.group_send(self.group_name, response)
 
   async def send_response(self, event):
     try:

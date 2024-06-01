@@ -1,17 +1,217 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
+{% block header %}
+<style>
+  #input-message {
+    resize: none;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 {% include 'breadcrubs.html' with title=_("Chatbot - Thread") %}
-<div class="row justify-content-center p-2">
-</div>
-
 {# Back to previous page #}
 <div class="row justify-content-center my-2 p-2">
-  <div class="col">
+  <div class="offset-8 col-auto">
     <a href="{% url 'chatbot:detail_assistant' pk=thread.assistant.pk %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
       {% trans "Back" %}
     </a>
   </div>
 </div>
+
+<div class="row justify-content-center p-2">
+  <div class="col">
+    <div class="row">
+      <div class="col" id="chats" data-url="ws/thread/{{ thread.pk }}" data-err="{% trans 'Error: Cannot use template element in this browser.' %}">
+      </div>
+    </div>
+    <div class="row">
+      <div class="col">
+        <textarea id="input-message" rows="4" placepholder="{% trans 'Write your message here.' %}" class="mt-2 w-100"></textarea>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col">
+        <button type="button" id="send-message" class="btn btn-outline-primary w-100 custom-boxshadow-effect">
+          {% trans "Send" %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<template id="chat-message-template">
+  <div class="row">
+    <div class="col">
+      <p class="speaker-type"></p>
+      <p class="chat-message"></p>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block bodyjs %}
+<script>
+(function () {
+  const API = (() => {
+    const _api = {};
+    let socket = null;
+
+    // Define private method
+    const sender = (command, payload) => {
+      const data = JSON.parse(JSON.stringify(payload));
+      data.command = command;
+      socket.send(JSON.stringify(data));
+    };
+
+    // Define public methods
+    _api.Init = (url, callback) => {
+      // Create WebSocket instance
+      const location = window.location;
+      const wsScheme = (location.protocol === 'https') ? 'wss' : 'ws';
+      const hostname = location.hostname;
+      socket = new WebSocket(`${wsScheme}://${hostname}/${url}`);
+
+      // In the case of receiving message from agent
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        callback(data);
+      };
+      socket.onclose = (event) => {
+        // Do nothing
+        ;
+      };
+    };
+    _api.SendMessage = (message) => {
+      sender('send_message', {message: message});
+    };
+    _api.GetHistory = () => {
+      sender('get_history', {});
+    };
+    // freeze
+    Object.freeze(_api);
+
+    return _api;
+  })();
+
+  const init = () => {
+    let _g_runID = null;
+    let _g_isEmpty = true;
+    const template = document.querySelector('#chat-message-template');
+    const chats = document.querySelector('#chats');
+    // Define the arguments of Init method
+    const url = chats.dataset.url;
+    const callback = (response) => {
+      const event = response.event;
+      const data = JSON.parse(response.data);
+
+      const addChatMessages = (messages, customClass = undefined) => {
+        for (const msg of messages) {
+          const clone = template.content.cloneNode(true);
+          const speakerType = clone.querySelector('.speaker-type');
+          const chatMessage = clone.querySelector('.chat-message');
+          console.log(msg);
+          chatMessage.textContent = msg.content;
+
+          if (customClass) {
+            chatMessage.classList.add(customClass);
+          }
+        }
+      };
+      const convert2array = (outputs) => ((outputs) ? (Array.isArray(outputs) ? outputs : outputs.message) : []);
+
+      switch (event) {
+        // In the case of chat histories
+        case 'history':
+          {
+            const messages = convert2array(data.values);
+            addChatMessages(messages);
+
+            if (messages) {
+              _g_isEmpty = false;
+            }
+          }
+          break;
+
+        // In the case of metadata
+        case 'metadata':
+          _g_runID = data;
+          break;
+
+        // In the case of response messages
+        case 'data':
+          {
+            const messages = convert2array(data);
+            addChatMessages(messages);
+          }
+          break;
+
+        // In the case of end statement
+        case 'end':
+          break;
+
+        // In the case of error message
+        case 'error':
+          {
+            const messages = convert2array(data);
+            addChatMessages(messages, 'text-danger');
+          }
+          break;
+
+        default:
+          break;
+      }
+    };
+    // Validation
+    if ('content' in document.createElement('template')) {
+      // Initialize
+      API.Init(url, callback);
+      API.GetHistory();
+
+      const inputMessage = document.querySelector('#input-message');
+      const sendBtn = document.querySelector('#send-message');
+      // Add event listener
+      inputMessage.addEventListener('keyup', (event) => {
+        if ((event.key === 'Enter') && event.ctrlKey) {
+          sendBtn.click();
+        }
+      });
+      sendBtn.addEventListener('click', (event) => {
+        const message = inputMessage.value.trim();
+        // Check if message is empty
+        if (!message) {
+          return;
+        }
+        // Define sent message
+        const input = (() => {
+          if (_g_isEmpty) {
+            // In the case of sending message at first
+            return [
+              {
+                content: message,
+                additional_kwargs: {},
+                type: 'human',
+                example: false,
+                id: `human-${Math.random()}`,
+              }
+            ];
+          }
+          else {
+            return [{message: message, run_id: _g_runID}];
+          }
+        })();
+        API.SendMessage(input);
+        inputMessage.value = '';
+      });
+    }
+    else {
+      const err = chats.dataset.err;
+      chats.innerHTML = `<p class="text-danger">${err}</p>`;
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
 {% endblock %}
