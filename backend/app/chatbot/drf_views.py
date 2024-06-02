@@ -8,10 +8,12 @@ from rest_framework.mixins import (
 )
 from rest_framework.viewsets import GenericViewSet, ModelViewSet
 from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from adrf.views import APIView as AsyncAPIView
 from drf_spectacular.utils import (
   extend_schema_view,
   extend_schema,
@@ -19,6 +21,9 @@ from drf_spectacular.utils import (
   OpenApiExample,
 )
 from django.utils.translation import gettext_lazy
+from django.shortcuts import get_object_or_404
+from django.http import StreamingHttpResponse
+from asgiref.sync import sync_to_async
 from . import serializers, models
 
 class IsOwner(BasePermission):
@@ -236,3 +241,45 @@ class ThreadViewSet(ModelViewSet):
 
   def get_queryset(self):
     return models.Thread.objects.collect_own_threads(self.request.user)
+
+# =====================
+# = Server Side Event =
+# =====================
+class AsyncJWTAuthentication(BaseAuthentication):
+  def __init__(self, *args, **kwargs):
+    self.wrapper = JWTAuthentication(*args, **kwargs)
+
+  async def authenticate(self, request):
+    return await sync_to_async(self.wrapper.authenticate)(request)
+
+class AsyncIsOwner(BasePermission):
+  async def has_object_permission(self, request, view, instance):
+    return await sync_to_async(instance.is_owner)(request.user)
+
+@extend_schema(
+  tags=[gettext_lazy('EventStream')],
+  description=gettext_lazy('Human in the loop'),
+  request=serializers.LangChainChatbotSerializer,
+)
+class EventStreamView(AsyncAPIView):
+  permission_classes = [IsAuthenticated, AsyncIsOwner]
+  authentication_classes = [AsyncJWTAuthentication]
+  serializer_class = serializers.LangChainChatbotSerializer
+  http_method_names = ['post']
+
+  async def aget_serializer(self, *args, **kwargs):
+    kwargs.setdefault('context', {
+      'request': self.request,
+      'format': self.format_kwarg,
+      'view': self,
+    })
+
+    return self.serializer_class(*args, **kwargs)
+
+  async def post(self, request, *args, **kwargs):
+    serializer = await self.aget_serializer(user=self.request.user, data=request.data)
+    await serializer.ais_valid(raise_exception=True)
+    controller = await serializer.aget_controller()
+    contents = await serializer.aget_contents()
+
+    return StreamingHttpResponse(controller.event_stream(contents), content_type='text/event-stream')

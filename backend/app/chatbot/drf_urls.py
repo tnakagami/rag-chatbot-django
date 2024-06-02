@@ -10,5 +10,8 @@ simple_router.register('assistants', drf_views.AssistantViewSet, basename='assis
 simple_router.register('threads', drf_views.ThreadViewSet, basename='thread')
 docfile_router = routers.CustomDocfileRouter()
 docfile_router.register('docfiles', drf_views.DocumentFileViewSet, basename='docfile')
+event_stream_urls = [
+  path('event-stream', drf_views.EventStreamView.as_view(), name='event_stream'),
+]
 
-urlpatterns = config_router.urls + simple_router.urls + docfile_router.urls
+urlpatterns = config_router.urls + simple_router.urls + docfile_router.urls + event_stream_urls

@@ -33,4 +33,4 @@ RUN    cd /opt \
 WORKDIR ${SRC_ROOT_PATH}
 USER ${USERNAME}
 
-ENTRYPOINT [ "uvicorn", "config.asgi:application", "--lifespan", "on", "--host", "0.0.0.0", "--port", "8000" ]
+ENTRYPOINT [ "uvicorn", "config.asgi:application", "--lifespan", "on", "--loop", "asyncio", "--host", "0.0.0.0", "--port", "8000" ]

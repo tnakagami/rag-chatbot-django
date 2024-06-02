@@ -40,9 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     'django.contrib.staticfiles',
     'django.forms',
-    'channels',
     'rest_framework',
     'rest_framework_simplejwt',
+    'adrf',
     'drf_spectacular',
     'view_breadcrumbs',
     'markdownx',
@@ -90,16 +90,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
-
-# Define redis setting
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [(os.getenv('REDIS_HOST', 'redis'), 6379)],
-        },
-    },
-}
 
 CACHES = {
     'default': {

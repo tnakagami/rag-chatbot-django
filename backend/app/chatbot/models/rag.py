@@ -33,6 +33,12 @@ class BaseManager(models.Manager):
     except self.model.DoesNotExist:
       return None
 
+  async def aget_or_none(self, **kwargs):
+    try:
+      return await self.get_queryset().aget(**kwargs)
+    except self.model.DoesNotExist:
+      return None
+
 class BaseConfig(models.Model):
   name = models.CharField(
     gettext_lazy('Config name'),

@@ -1,12 +1,14 @@
 import json
 import os
+from asgiref.sync import sync_to_async
 from rest_framework import serializers
+from adrf.serializers import Serializer as AsyncSerializer
 from rest_framework.relations import MANY_RELATION_KWARGS, ManyRelatedField
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer, OpenApiExample
 from django.utils.translation import gettext_lazy
 from django.core.files import File
 from django.core.files.storage import FileSystemStorage
-from . import models, tasks
+from . import models, tasks, stream
 from .models.agents import AgentType, ToolType
 
 class PrimaryKeyRelatedFieldEx(serializers.PrimaryKeyRelatedField):
@@ -621,3 +623,152 @@ class ThreadSerializer(serializers.ModelSerializer):
       raise serializers.ValidationError(errors)
 
     return attrs
+
+@extend_schema_serializer(
+  examples=[
+    OpenApiExample(
+      name='Pseudo chatbot (Get chat history)',
+      value={
+        'thread_pk': 1,
+        'request_type': 'chat_history',
+        'message': {},
+      },
+      request_only=True,
+      response_only=False,
+    ),
+    OpenApiExample(
+      name='Pseudo chatbot (Send chat message)',
+      value={
+        'thread_pk': 1,
+        'request_type': 'chat_message',
+        'message': {'message': 'Could you please tell me your role?'},
+      },
+      request_only=True,
+      response_only=False,
+    ),
+  ]
+)
+class LangChainChatbotSerializer(AsyncSerializer):
+  thread_pk = PrimaryKeyRelatedFieldEx(queryset=models.Thread.objects.all(), write_only=True)
+  request_type = serializers.ChoiceField(choices=[
+    ('chat_history', gettext_lazy('Get chat history in this thread')),
+    ('chat_message', gettext_lazy('Send chat message')),
+  ], allow_blank=False)
+  message = serializers.JSONField(write_only=True)
+
+  def __init__(self, *args, **kwargs):
+    self.user = kwargs.pop('user', None)
+    super().__init__(*args, **kwargs)
+
+  async def ais_valid(self, *, raise_exception=False):
+    assert hasattr(self, 'initial_data'), (
+      'Cannot call `.is_valid()` as no `data=` keyword argument was '
+      'passed when instantiating the serializer instance.'
+    )
+
+    if not hasattr(self, '_validated_data'):
+      try:
+        self._validated_data = await self.arun_validation(self.initial_data)
+      except serializers.ValidationError as exc:
+        self._validated_data = {}
+        self._errors = exc.detail
+      else:
+        self._errors = {}
+
+      if self._errors and raise_exception:
+        raise serializers.ValidationError(self.errors)
+
+    return not bool(self._errors)
+
+  async def arun_validation(self, data):
+    values = await self.ato_internal_value(data)
+
+    try:
+      values = await self.avalidate(values)
+      assert values is not None, '.validate() should return the validated data'
+    except (serializers.ValidationError, serializers.DjangoValidationError) as exc:
+      raise serializers.ValidationError(detail=serializers.as_serializer_error(exc))
+
+    return values
+
+  async def ato_internal_value(self, data):
+    interals = {}
+    thread_pk = data.get('thread_pk', None)
+    request_type = data.get('request_type', None)
+    message = data.get('message', None)
+    # Convert data from thread_pk to thread instance
+    if thread_pk is not None:
+      if isinstance(thread_pk, list):
+        thread_pk = thread_pk[0]
+      thread_pk = await models.Thread.objects.aget_or_none(pk=int(thread_pk))
+    # Convert data from list to string if applicable
+    if request_type is not None:
+      if isinstance(request_type, list):
+        request_type = request_type[0]
+    # Convert data from list to string if applicable
+    if message is not None:
+      if isinstance(message, list):
+        message = message[0]
+    # Store results
+    interals['thread_pk'] = thread_pk
+    interals['request_type'] = request_type
+    interals['message'] = message
+
+    return interals
+
+  async def avalidate(self, attrs):
+    errors = {}
+    thread = attrs.get('thread_pk', None)
+    request_type = attrs.get('request_type', None)
+    message = attrs.get('message', None)
+    # Check thread
+    if thread is None:
+      errors['thread_pk'] = gettext_lazy('No primary key exists. Please set the primary key.')
+    else:
+      is_valid = await sync_to_async(thread.is_owner)(self.user)
+
+      if not is_valid:
+        errors['thread_pk'] = gettext_lazy("Invalid primary key exists. Please set the primary key that you are the thread's owner.")
+    # Check request_type
+    if request_type is None:
+      errors['request_type'] = gettext_lazy('No request_type exists. Please set request_type.')
+    else:
+      choices = self.fields['request_type'].choices
+      valids = list(choices.keys())
+
+      if request_type not in valids:
+        candidates = ', '.join(valids)
+        errors['request_type'] = gettext_lazy(f'Invalid request_type exists. Please select value from ({candidates})')
+    # Check message
+    try:
+      message = json.loads(message)
+    except Exception:
+      errors['message'] = gettext_lazy(f'Failed to json serialization. Please check your message.')
+
+    if len(errors) > 0:
+      raise serializers.ValidationError(errors)
+
+    validated_data = {
+      'thread_pk': thread,
+      'request_type': request_type,
+      'message': message,
+    }
+
+    return validated_data
+
+  async def aget_controller(self):
+    validated_data = {**self.validated_data}
+    thread = validated_data.get('thread_pk')
+    executor = await sync_to_async(thread.get_executor)()
+    controller = stream.ChatbotController(app=executor, pk=thread.pk)
+
+    return controller
+
+  async def aget_contents(self):
+    validated_data = {**self.validated_data}
+    contents = {
+      'type': validated_data.get('request_type'),
+      'message': validated_data.get('message'),
+    }
+
+    return contents

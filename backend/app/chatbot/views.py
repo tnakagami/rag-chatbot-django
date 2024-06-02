@@ -371,6 +371,13 @@ class ThreadDetailView(LoginRequiredMixin, IsOwner, DetailBreadcrumbMixin, Detai
     (gettext_lazy('Thread'), ''),
   ]
 
+  def get_context_data(self, *args, **kwargs):
+    context = super().get_context_data(*args, **kwargs)
+    context['token_url'] = reverse('chatbot:token')
+    context['stream_url'] = reverse('api:chatbot:event_stream')
+
+    return context
+
 class ThreadDeleteView(_CommonDeleteView):
   model = models.Thread
   context_object_name = 'thread'

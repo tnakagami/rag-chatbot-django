@@ -21,6 +21,7 @@ import chatbot.models.utils.tools as tools
 from langchain_community.document_loaders import Blob
 from chatbot.models.utils.vectorstore import DistanceStrategy, CustomVectorStore
 from celery import states
+from asgiref.sync import sync_to_async
 from django.db import NotSupportedError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.exceptions import ValidationError
@@ -509,6 +510,26 @@ def test_check_baseconfig(get_common_data):
   collected = BaseConfig.objects.get_or_none(pk=instance.pk)
   doesnot_exist = BaseConfig.objects.get_or_none(pk=instance.pk+1)
   default_type_id, default_config = BaseConfig.get_config_form_args()
+
+  assert instance.name == name
+  assert instance.config == config
+  assert default_type_id == AgentType.OPENAI
+  assert target == config
+  assert all([isinstance(default_config, dict), len(default_config) == 0])
+  assert collected is not None
+  assert doesnot_exist is None
+
+@pytest.mark.chatbot
+@pytest.mark.model
+@pytest.mark.django_db
+@pytest.mark.asyncio
+async def test_check_aget_or_none_method(get_common_data):
+  name, config = get_common_data
+  instance = await BaseConfig.objects.acreate(name=name, config=config)
+  target = await sync_to_async(instance.get_config)()
+  collected = await BaseConfig.objects.aget_or_none(pk=instance.pk)
+  doesnot_exist = await BaseConfig.objects.aget_or_none(pk=instance.pk+1)
+  default_type_id, default_config = await sync_to_async(BaseConfig.get_config_form_args)()
 
   assert instance.name == name
   assert instance.config == config

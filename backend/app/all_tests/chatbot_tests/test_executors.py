@@ -218,6 +218,7 @@ def test_check_executor_member_and_method(get_tool_or_xml_executor_arg, tool_or_
 
   assert checker(kwargs, instance)
   assert isinstance(app, Runnable)
+  assert hasattr(app, '_is_streaming')
 
 @pytest.mark.chatbot
 @pytest.mark.util
