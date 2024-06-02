@@ -23,9 +23,13 @@ mkdir -p ${LOG_DIR}
 # =============
 celery multi start \
        --app=config --workdir=${WORKDIR} \
-       worker -l INFO \
+       worker --loglevel=INFO \
        --pidfile="${PID_DIR}/celeryd-%n.pid" \
        --logfile="${LOG_DIR}/celeryd-%n%I.log"
+celery --app=config --workdir=${WORKDIR} \
+       beat --loglevel=INFO --schedule ${PID_DIR}/celerybeat-schedule \
+       --pidfile="${PID_DIR}/celery-beatd.pid" \
+       --logfile="${LOG_DIR}/celery-beatd.log"
 
 while [ ${is_running} -eq 1 ]; do
   sleep 1
@@ -35,3 +39,6 @@ done
 celery multi stop worker \
        --pidfile="${PID_DIR}/celeryd-%n.pid" \
        --logfile="${LOG_DIR}/celeryd-%n%I.log"
+celery stop beat \
+       --pidfile="${PID_DIR}/celery-beatd.pid" \
+       --logfile="${LOG_DIR}/celery-beatd.log"

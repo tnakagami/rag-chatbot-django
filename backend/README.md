@@ -46,11 +46,22 @@ Run the following commands to reflect translation messages.
 
 ```bash
 # In the host environment
-docker-compose run --rm -it --entrypoint django-admin makemessages -l ja backend
+docker-compose up -d
+docker exec -it backend
+
+# In the docker environment
+django-admin makemessages -l ja
+exit # or press Ctrl + D
 #
 # Edit .po files using your favorite editor (e.g. vim)
 #
-docker-compose run --rm -it --entrypoint django-admin compilemessages backend
+
+# In the host environment
+docker exec -it backend
+
+# In the docker environment
+django-admin compilemessages
+exit # or press Ctrl + D
 ```
 
 ## Test

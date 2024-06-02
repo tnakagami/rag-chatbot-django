@@ -14,7 +14,7 @@ ENV PYTHONUNBUFFERED=1 \
     SRC_ROOT_PATH=/opt/app
 
 RUN    apt-get update \
-    && apt-get install -y libmagic1 gcc libc-dev python3-dev libpq-dev \
+    && apt-get install -y libmagic1 gcc libc-dev python3-dev libpq-dev gettext \
     && addgroup --gid ${GID} ${USERNAME} \
     && adduser --home /opt/home --shell /bin/bash --uid ${UID} --gid ${GID} --disabled-password ${USERNAME} \
     && pip install poetry \

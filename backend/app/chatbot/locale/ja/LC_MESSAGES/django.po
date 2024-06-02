@@ -1,0 +1,665 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-06-03 07:17+0900\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+#: chatbot/drf_views.py:51
+msgid "Agent"
+msgstr "Agent"
+
+#: chatbot/drf_views.py:56
+msgid "Get type ids of agent model"
+msgstr "AgentモデルのType IDを取得"
+
+#: chatbot/drf_views.py:67
+msgid "Get configuration format of agent model"
+msgstr "AgentのConfigフォーマットを取得"
+
+#: chatbot/drf_views.py:73
+msgid "Get configuration format of target agent"
+msgstr "対象のAgentのConfigフォーマットを取得"
+
+#: chatbot/drf_views.py:92
+msgid "Embedding"
+msgstr "Embedding"
+
+#: chatbot/drf_views.py:97
+msgid "Get type ids of embedding model"
+msgstr "EmbeddingモデルのType IDを取得"
+
+#: chatbot/drf_views.py:108
+msgid "Get distance types of embedding model"
+msgstr "EmbeddingモデルのDistance Typeを取得"
+
+#: chatbot/drf_views.py:119
+msgid "Get configuration format of embedding model"
+msgstr "EmbeddingモデルのConfigフォーマットを取得"
+
+#: chatbot/drf_views.py:125
+msgid "Get configuration format of target embedding"
+msgstr "対象のEmbeddingモデルのConfigフォーマットを取得"
+
+#: chatbot/drf_views.py:144
+msgid "Tool"
+msgstr "Tool"
+
+#: chatbot/drf_views.py:149
+msgid "Get type ids of tool model"
+msgstr "ToolモデルのType IDを取得"
+
+#: chatbot/drf_views.py:160
+msgid "Get configuration format of tool model"
+msgstr "ToolモデルのConfigフォーマットを取得"
+
+#: chatbot/drf_views.py:166
+msgid "Get configuration format of target tool"
+msgstr "対象のToolモデルのConfigフォーマットを取得"
+
+#: chatbot/drf_views.py:185 chatbot/views.py:259 chatbot/views.py:309
+#: chatbot/views.py:370
+msgid "Assistant"
+msgstr "Assistant"
+
+#: chatbot/drf_views.py:196
+msgid "Get tasks"
+msgstr "タスク一覧を取得"
+
+#: chatbot/drf_views.py:209
+msgid "DocumentFile"
+msgstr "検索用文書"
+
+#: chatbot/drf_views.py:235 chatbot/views.py:371
+msgid "Thread"
+msgstr "Thread"
+
+#: chatbot/drf_views.py:260
+msgid "EventStream"
+msgstr "イベントストーリーム"
+
+#: chatbot/drf_views.py:261
+msgid "Human in the loop"
+msgstr "Human in the loop"
+
+#: chatbot/forms.py:59
+msgid "Active"
+msgstr "有効"
+
+#: chatbot/forms.py:59
+msgid "Not active"
+msgstr "無効"
+
+#: chatbot/forms.py:187
+msgid "Execute action before stopping"
+msgstr "停止前にactionを実行する"
+
+#: chatbot/forms.py:187
+msgid "Execute no actions"
+msgstr "actionを実行しない"
+
+#: chatbot/forms.py:206
+msgid ""
+"Invalid agent, embedding, or tools exist. Please check your selected items."
+msgstr "無効なAgent、Embedding、Toolが含まれます。選択したアイテムを確認してください。"
+
+#: chatbot/forms.py:240
+msgid "Invalid assistant exist."
+msgstr "無効なAssistantが含まれます。"
+
+#: chatbot/forms.py:248
+msgid "Invalid docfiles exist. Please check your selected items."
+msgstr "無効な検索用文書が含まれます。選択したアイテムを確認してください。"
+
+#: chatbot/models/agents.py:87
+msgid "Open AI"
+msgstr "OpenAI"
+
+#: chatbot/models/agents.py:88
+msgid "Azure"
+msgstr "Azure OpenAI"
+
+#: chatbot/models/agents.py:89
+msgid "Anthropic (Claude 2)"
+msgstr "Anthropic (Claude 2)"
+
+#: chatbot/models/agents.py:90
+msgid "Amazon Bedrock"
+msgstr "Amazon Bedrock"
+
+#: chatbot/models/agents.py:91
+msgid "Fireworks (Mixtral)"
+msgstr "Fireworks (Mixtral)"
+
+#: chatbot/models/agents.py:92
+msgid "Ollama"
+msgstr "Ollama"
+
+#: chatbot/models/agents.py:93
+msgid "GEMINI"
+msgstr "GEMINI"
+
+#: chatbot/models/agents.py:173
+msgid "Retriever"
+msgstr "Retriever (文書検索)"
+
+#: chatbot/models/agents.py:174
+msgid "Action Server"
+msgstr "Action Server"
+
+#: chatbot/models/agents.py:175 chatbot/models/utils/tools.py:151
+msgid "Arxiv"
+msgstr "Arxiv (論文検索サイト)"
+
+#: chatbot/models/agents.py:176
+msgid "Connery Action"
+msgstr "Connery Action"
+
+#: chatbot/models/agents.py:177
+msgid "Dall-E Tool"
+msgstr "Dall-E Tool"
+
+#: chatbot/models/agents.py:178 chatbot/models/utils/tools.py:205
+msgid "DuckDuckGo Search"
+msgstr "DuckDuckGo検索"
+
+#: chatbot/models/agents.py:179
+msgid "SEC Filings (Kay AI)"
+msgstr "SEC Filings (Kay AI)"
+
+#: chatbot/models/agents.py:180
+msgid "Press Releases (Kay AI)"
+msgstr "Press Releases (Kay AI)"
+
+#: chatbot/models/agents.py:181 chatbot/models/utils/tools.py:258
+msgid "PubMed"
+msgstr "PubMed"
+
+#: chatbot/models/agents.py:182
+msgid "Tavily Search"
+msgstr "Tavily検索"
+
+#: chatbot/models/agents.py:183
+msgid "Tavily Answer"
+msgstr "Tavily検索（回答のみ）"
+
+#: chatbot/models/agents.py:184
+msgid "You Search"
+msgstr "You検索"
+
+#: chatbot/models/agents.py:185
+msgid "Wikipedia"
+msgstr "Wikipedia"
+
+#: chatbot/models/rag.py:44
+msgid "Config name"
+msgstr "Config名"
+
+#: chatbot/models/rag.py:46 chatbot/models/rag.py:237 chatbot/models/rag.py:405
+msgid "255 characters or fewer."
+msgstr "制約：255文字以下"
+
+#: chatbot/models/rag.py:49
+msgid "Config"
+msgstr "Config"
+
+#: chatbot/models/rag.py:53
+msgid "Required: JSON format"
+msgstr "制約：JSON形式"
+
+#: chatbot/models/rag.py:86
+msgid "Agent config owner"
+msgstr "AgentのConfig所有者"
+
+#: chatbot/models/rag.py:89
+msgid "Agent type"
+msgstr "Agent type"
+
+#: chatbot/models/rag.py:113
+msgid "Euclidean"
+msgstr "ユークリッド距離"
+
+#: chatbot/models/rag.py:114
+msgid "Cosine"
+msgstr "コサイン類似度"
+
+#: chatbot/models/rag.py:115
+msgid "Max inner product"
+msgstr "最大内積探索"
+
+#: chatbot/models/rag.py:133
+msgid "Embedding config owner"
+msgstr "EmbeddingのConfig所有者"
+
+#: chatbot/models/rag.py:136
+msgid "Distance strategy"
+msgstr "Distance strategy"
+
+#: chatbot/models/rag.py:141
+msgid "Embedding type"
+msgstr "Embedding type"
+
+#: chatbot/models/rag.py:174
+msgid "Tool config owner"
+msgstr "ToolのConfig所有者"
+
+#: chatbot/models/rag.py:177
+msgid "Tool type"
+msgstr "Tool type"
+
+#: chatbot/models/rag.py:232
+msgid "Assistant owner"
+msgstr "Assistantの所有者"
+
+#: chatbot/models/rag.py:235
+msgid "Assistant name"
+msgstr "Assistant名"
+
+#: chatbot/models/rag.py:240
+msgid "System message"
+msgstr "システムメッセージ"
+
+#: chatbot/models/rag.py:242
+msgid "You are a helpful assistant."
+msgstr "You are a helpful assistant."
+
+#: chatbot/models/rag.py:247
+msgid "Agent used in RAG"
+msgstr "RAGで用いるAgent"
+
+#: chatbot/models/rag.py:252
+msgid "Embedding used in RAG"
+msgstr "RAGで用いるEmbedding"
+
+#: chatbot/models/rag.py:258
+msgid "Tools used in RAG"
+msgstr "RAGで用いるTool"
+
+#: chatbot/models/rag.py:261
+msgid "Interrupt flag in LangGraph workflow"
+msgstr "LangGraph workflowにおける中断フラグ"
+
+#: chatbot/models/rag.py:264
+msgid ""
+"If True, Interrupt before the specific node (e.g. \"action\" node) when the "
+"workflow is stopped with human intervention."
+msgstr "有効にした場合、人手の介入によりworkflowが停止された場合、特定のノード（例：\"action\"ノード）の前で中断します。"
+
+#: chatbot/models/rag.py:329
+msgid "Base assistant of document files"
+msgstr "検索用文書に紐づくAssistant"
+
+#: chatbot/models/rag.py:332
+msgid "Document name"
+msgstr "検索用文書名"
+
+#: chatbot/models/rag.py:335
+#, python-brace-format
+msgid "{MAX_FILENAME_LENGTH} characters or fewer."
+msgstr "制約：{MAX_FILENAME_LENGTH}文字以下"
+
+#: chatbot/models/rag.py:338
+msgid "Document status"
+msgstr "検索用文書のステータス"
+
+#: chatbot/models/rag.py:341
+msgid "If True, the embedding process is finished."
+msgstr "有効の場合、Embedding processが完了したことを表す。"
+
+#: chatbot/models/rag.py:400
+msgid "Base assistant of thread"
+msgstr "Threadに紐づくAssistant"
+
+#: chatbot/models/rag.py:403
+msgid "Thread name"
+msgstr "Thread名"
+
+#: chatbot/models/rag.py:411
+msgid "Document files used in RAG"
+msgstr "RAGで用いる検索用文書"
+
+#: chatbot/models/rag.py:477
+msgid "Base assistant of embedding store"
+msgstr "Embedding Storeに紐づくAssistant"
+
+#: chatbot/models/rag.py:483
+msgid "Base document file of embedding store"
+msgstr "Embedding Storeに紐づく検索用文書"
+
+#: chatbot/models/rag.py:486
+msgid "Embedding vector"
+msgstr "Embedding vector"
+
+#: chatbot/models/rag.py:489
+msgid "Document"
+msgstr "検索用文書"
+
+#: chatbot/models/rag.py:540
+msgid "LangGraph checkpoint"
+msgstr "LangGraph checkpoint"
+
+#: chatbot/models/rag.py:543
+msgid "Current checkpoint time"
+msgstr "現在のcheckpointの時間"
+
+#: chatbot/models/rag.py:544 chatbot/models/rag.py:550
+msgid "Required: ISO format"
+msgstr "要求：ISOフォーマット"
+
+#: chatbot/models/rag.py:547
+msgid "Previous checkpoint time"
+msgstr "以前のcheckpointの時間"
+
+#: chatbot/models/rag.py:553
+msgid "Checkpoint"
+msgstr "Checkpoint"
+
+#: chatbot/models/rag.py:554
+msgid "Required: Pickle instance"
+msgstr "要求：Pickle instance"
+
+#: chatbot/models/utils/llms.py:24 chatbot/models/utils/llms.py:248
+#: chatbot/models/utils/llms.py:275 chatbot/models/utils/tools.py:62
+msgid "model name"
+msgstr "モデル名"
+
+#: chatbot/models/utils/llms.py:25
+msgid "temperature"
+msgstr "出力のランダム性（temperature）"
+
+#: chatbot/models/utils/llms.py:26
+msgid "enable streaming"
+msgstr "Streamingの有効化"
+
+#: chatbot/models/utils/llms.py:27
+msgid "max retries"
+msgstr "最大試行回数"
+
+#: chatbot/models/utils/llms.py:28 chatbot/models/utils/tools.py:64
+msgid "proxy url"
+msgstr "Proxy URL"
+
+#: chatbot/models/utils/llms.py:56 chatbot/models/utils/llms.py:91
+#: chatbot/models/utils/llms.py:132 chatbot/models/utils/llms.py:213
+#: chatbot/models/utils/tools.py:53
+msgid "api key"
+msgstr "API key"
+
+#: chatbot/models/utils/llms.py:57 chatbot/models/utils/llms.py:92
+#: chatbot/models/utils/llms.py:133 chatbot/models/utils/llms.py:162
+#: chatbot/models/utils/llms.py:214 chatbot/models/utils/llms.py:249
+#: chatbot/models/utils/tools.py:63
+msgid "endpoint"
+msgstr "Endpoint"
+
+#: chatbot/models/utils/llms.py:93 chatbot/models/utils/llms.py:161
+msgid "version"
+msgstr "Version"
+
+#: chatbot/models/utils/llms.py:94
+msgid "deployment"
+msgstr "Deployment"
+
+#: chatbot/models/utils/llms.py:159
+msgid "service name"
+msgstr "Service name"
+
+#: chatbot/models/utils/llms.py:160
+msgid "region name"
+msgstr "Region name"
+
+#: chatbot/models/utils/llms.py:163
+msgid "access key"
+msgstr "Access key"
+
+#: chatbot/models/utils/llms.py:164
+msgid "secret key"
+msgstr "Secret key"
+
+#: chatbot/models/utils/llms.py:276
+msgid "service account"
+msgstr "Service account"
+
+#: chatbot/models/utils/llms.py:277
+msgid "location"
+msgstr "Location"
+
+#: chatbot/models/utils/tools.py:44
+msgid "Number of output documents when searching documents by similarity"
+msgstr "類似度文書検索時の出力文書数"
+
+#: chatbot/models/utils/tools.py:56 chatbot/models/utils/tools.py:59
+msgid "url"
+msgstr "URL"
+
+#: chatbot/models/utils/tools.py:98
+msgid "Retrieval"
+msgstr "Retrieval"
+
+#: chatbot/models/utils/tools.py:99
+msgid "Look up information in uploaded files."
+msgstr "アップロード済みのファイルからの情報検索"
+
+#: chatbot/models/utils/tools.py:133
+msgid "Action Server by Robocorp"
+msgstr "Robocorp製のAction Server"
+
+#: chatbot/models/utils/tools.py:134
+msgid "Run AI actions with Roborop Action Server"
+msgstr "Roborop Action ServerによるAI actionの実行"
+
+#: chatbot/models/utils/tools.py:152
+msgid "Searches Arxiv"
+msgstr "Arxiv検索"
+
+#: chatbot/models/utils/tools.py:158
+msgid "AI Action Runner by Connery"
+msgstr "ConneryのRunnerによるAI actionの実行"
+
+#: chatbot/models/utils/tools.py:159
+msgid "Connect OpenGPTs to the real world with Connery"
+msgstr "Connery経由でOpenGPTsから実世界に接続"
+
+#: chatbot/models/utils/tools.py:176
+msgid "Image Generator (Dall-E)"
+msgstr "画像生成（Dall-E）"
+
+#: chatbot/models/utils/tools.py:177
+msgid "Generates images from a text description using OpenAI's DALL-E model."
+msgstr "OpenAIのDALL-Eモデルを用いてテキストから画像を生成"
+
+#: chatbot/models/utils/tools.py:198
+msgid ""
+"Useful for when you need to generate images from a text description. Input "
+"should be an image description."
+msgstr "テキストから画像を生成する必要がある場合に役立つ。テキストで画像の概要を入力してください。"
+
+#: chatbot/models/utils/tools.py:206
+msgid "Searches the web with DuckDuckGo"
+msgstr "DuckDuckGoによるWeb検索"
+
+#: chatbot/models/utils/tools.py:212
+msgid "SEC Filings (Kay.ai)"
+msgstr "SEC Filing (Kay.ai)"
+
+#: chatbot/models/utils/tools.py:213
+msgid "Searches through SEC filings using Kay.ai"
+msgstr "Kay.aiを用いたSEC filing検索"
+
+#: chatbot/models/utils/tools.py:235
+msgid "Press Releases (Kay.ai)"
+msgstr "Press Release (Kay.ai)"
+
+#: chatbot/models/utils/tools.py:236
+msgid "Searches through press releases using using Kay.ai"
+msgstr "Kay.aiを用いたpress release検索"
+
+#: chatbot/models/utils/tools.py:259
+msgid "Searches PubMed"
+msgstr "PubMed検索"
+
+#: chatbot/models/utils/tools.py:269
+msgid "Tavily Search (with evidence)"
+msgstr "Tavily検索（エビデンスあり）"
+
+#: chatbot/models/utils/tools.py:270
+msgid "Uses the Tavilysearch engine. Includes sources in the response."
+msgstr "Tavilysearchを利用した検索。回答にはソース情報が含まれます。"
+
+#: chatbot/models/utils/tools.py:283
+msgid "Tavily Search (only answer)"
+msgstr "Tavily検索（回答のみ）"
+
+#: chatbot/models/utils/tools.py:284
+msgid ""
+"Uses the Tavilysearch engine. This returns only the answer, no supporting "
+"evidence."
+msgstr "Tavilysearchを利用した検索。回答のみで、エビデンスは含まれません。"
+
+#: chatbot/models/utils/tools.py:297
+msgid "You.com Search"
+msgstr "You.com検索"
+
+#: chatbot/models/utils/tools.py:298
+msgid "Uses You.com search, optimized responses for LLMs."
+msgstr "You.comを利用した検索。LLM向けに最適化された回答となります。"
+
+#: chatbot/models/utils/tools.py:319
+msgid "Wikipedia Search"
+msgstr "Wikipedia検索"
+
+#: chatbot/models/utils/tools.py:320
+msgid "Searches Wikipedia"
+msgstr "Wikipediaを利用した検索。"
+
+#: chatbot/models/utils/vectorstore.py:103
+msgid "No supported normalization function for distance_strategy"
+msgstr "Distance strategyではサポートされていない標準化機能です。"
+
+#: chatbot/serializers.py:112
+msgid "Config data is empty."
+msgstr "Config情報が含まれていません。"
+
+#: chatbot/serializers.py:118
+msgid "Invalid keys exist in config data."
+msgstr "無効なConfig設定が含まれます。"
+
+#: chatbot/serializers.py:505
+#, python-brace-format
+msgid "Invalid extension ({ext}). Allowed: {allowed_exts}"
+msgstr "{ext}は無効な拡張子です。利用可能な拡張子一覧：{allowed_exts}"
+
+#: chatbot/serializers.py:510
+#, python-brace-format
+msgid "Max file size is {max_size}. Current size: {current_size}"
+msgstr "ファイルサイズの上限は{max_size}です。アップロードされたファイルのサイズ：{current_size}"
+
+#: chatbot/serializers.py:594
+msgid ""
+"Invalid primary key of assistant because it's prohibited to set different "
+"primary key of assistant."
+msgstr "無効なAssistantが指定されました。Threadに紐づかないAssistantの指定は禁止されています。"
+
+#: chatbot/serializers.py:609
+msgid ""
+"Invalid docfiles exist. Please check if the owner of these docfiles are "
+"yours."
+msgstr "無効な検索用文書が存在します。あなたが所有者である検索用文書かどうか確認してください。"
+
+#: chatbot/serializers.py:654
+msgid "Get chat history in this thread"
+msgstr "このThreadのChat履歴を取得"
+
+#: chatbot/serializers.py:655
+msgid "Send chat message"
+msgstr "Chatメッセージを送信"
+
+#: chatbot/serializers.py:726
+msgid "No primary key exists. Please set the primary key."
+msgstr "Primary keyが存在しません。Primary keyを設定してください。"
+
+#: chatbot/serializers.py:731
+msgid ""
+"Invalid primary key exists. Please set the primary key that you are the "
+"thread's owner."
+msgstr "無効なPrimary keyが存在します。あなたがThreadの所有者であるPrimary keyを設定してください。"
+
+#: chatbot/serializers.py:734
+msgid "No request_type exists. Please set request_type."
+msgstr "request_typeが存在しません。request_typeを設定してください。"
+
+#: chatbot/serializers.py:741
+#, python-brace-format
+msgid "Invalid request_type exists. Please select value from ({candidates})"
+msgstr "無効なrequest_typeが存在します。有効なrequest_type：{candidates}"
+
+#: chatbot/serializers.py:746
+msgid "Failed to json serialization. Please check your message."
+msgstr "JSONのシリアライズに失敗しました。送信したメッセージを確認してください。"
+
+#: chatbot/views.py:62 chatbot/views.py:114 chatbot/views.py:124
+#: chatbot/views.py:147 chatbot/views.py:237 chatbot/views.py:247
+#: chatbot/views.py:258 chatbot/views.py:273 chatbot/views.py:308
+#: chatbot/views.py:369
+msgid "Chatbot"
+msgstr "Chatbot"
+
+#: chatbot/views.py:63 chatbot/views.py:148
+msgid "Settings"
+msgstr "設定"
+
+#: chatbot/views.py:125
+msgid "Tasks"
+msgstr "タスク"
+
+#: chatbot/views.py:169
+msgid "Create agent"
+msgstr "Agent作成"
+
+#: chatbot/views.py:177
+msgid "Update agent"
+msgstr "Agent更新"
+
+#: chatbot/views.py:192
+msgid "Create embedding"
+msgstr "Embedding作成"
+
+#: chatbot/views.py:200
+msgid "Update embedding"
+msgstr "Embedding更新"
+
+#: chatbot/views.py:215
+msgid "Create tool"
+msgstr "Tool作成"
+
+#: chatbot/views.py:223
+msgid "Update tool"
+msgstr "Tool更新"
+
+#: chatbot/views.py:238
+msgid "Create assistant"
+msgstr "Assistant作成"
+
+#: chatbot/views.py:248
+msgid "Update assistant"
+msgstr "Assistant更新"
+
+#: chatbot/views.py:274
+msgid "Create document file"
+msgstr "検索用文書作成"
+
+#: chatbot/views.py:310
+msgid "Create thread"
+msgstr "Thread作成"
