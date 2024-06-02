@@ -1,17 +1,309 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
+{% block header %}
+<style>
+  #input-message {
+    resize: none;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 {% include 'breadcrubs.html' with title=_("Chatbot - Thread") %}
-<div class="row justify-content-center p-2">
-</div>
-
 {# Back to previous page #}
-<div class="row justify-content-center my-2 p-2">
+<div class="row px-2">
   <div class="col">
-    <a href="{% url 'chatbot:detail_assistant' pk=thread.assistant.pk %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
-      {% trans "Back" %}
-    </a>
+    <div class="row justify-content-end my-2">
+      <div class="col-auto">
+        <a href="{% url 'chatbot:detail_assistant' pk=thread.assistant.pk %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+          {% trans "Back" %}
+        </a>
+      </div>
+    </div>
   </div>
 </div>
+
+<div class="row justify-content-center p-2 flex-grow-1 mb-2">
+  <div class="col d-flex flex-column">
+    <div class="d-flex flex-column gap-0 row-gap-2 flex-grow-1">
+      <div class="d-flex flex-column flex-grow-1 gap-0 row-gap-2" id="chats" data-tokenurl="{{ token_url }}" data-streamurl="{{ stream_url }}"
+           data-err="{% trans 'Error: Cannot use template element in this browser.' %}">
+      </div>
+      <textarea id="input-message" rows="4" placepholder="{% trans 'Write your message here.' %}" class="border border-2 w-100"></textarea>
+      <button type="button" id="send-message" class="btn btn-outline-primary w-100 custom-boxshadow-effect">
+        <span id="is-ready">{% trans "Send" %}</span>
+        <div id="is-sending" class="d-none">
+          <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          {% trans "Sending..." %}
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<template id="chat-message-template">
+  <div class="row">
+    <div class="col-12 col-md-1  speaker-type fw-bold"></div>
+    <div class="col-12 col-md-11 chat-message font-monospace"></div>
+  </div>
+</template>
+
+<div class="modal" id="error-message-modal" tabindex="-1" aria-labelledby="error-message-label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="modal-title fs-5" id="error-message-label">{% trans "Error" %}</p>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-danger" id="error-message"></div>
+      <div class="modal-footer">
+        <div class="row w-100 g-2">
+          <div class="col-12">
+            <button type="button" class="btn btn-secondary w-100 custom-boxshadow-effect" data-bs-dismiss="modal">
+              {% trans "Close" %}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block bodyjs %}
+<script>
+(function () {
+  const getCookie = (name) => {
+    let cookieValue = null;
+
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+
+      for (const target of cookies) {
+        const cookie = target.trim();
+        // Does this cookie string begin with the name we want?
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+
+    return cookieValue;
+  };
+  // Get JSON Web token
+  const getToken = async (url) => {
+    const response = await fetch(url, {method: 'GET'});
+    const data = await response.json();
+    const token = data.token;
+
+    return token;
+  };
+  // Send message to server
+  const submit = async (url, token, form, callback) => {
+    const csrftoken = getCookie('csrftoken');
+    // Call fetch function and execute post-process
+    const response = await fetch(url, {
+      method: 'POST',
+      body: form,
+      headers: {
+        'X-CSRFToken': csrftoken,
+        Authorization: `JWT ${token}`,
+      },
+    });
+    // Get reader
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    // =========
+    // main loop
+    // =========
+    let isRunning = (!reader) ? false : true;
+    let restData = '';
+
+    while (isRunning) {
+      const { done, value } = await reader.read();
+      // Check if all streaming data is sent
+      if (done) {
+        isRunning = false;
+        continue;
+      }
+      const lines = restData + value;
+      const jsons = lines.split('\n\n').map((line) => line.trim()).filter(sentence => sentence);
+      restData = '';
+      // Sequential process
+      for (const json of jsons) {
+        try {
+          const chunk = JSON.parse(json);
+          callback(chunk);
+        }
+        catch (err) {
+          restData += json;
+        }
+      }
+    }
+
+    return;
+  };
+
+  const init = () => {
+    let _g_runID = null;
+    const template = document.querySelector('#chat-message-template');
+    const chats = document.querySelector('#chats');
+    const inputMessage = document.querySelector('#input-message');
+    const sendBtn = document.querySelector('#send-message');
+    const errMsgModal = new bootstrap.Modal('#error-message-modal');
+    const isReadyField = document.querySelector('#is-ready');
+    const isSending = document.querySelector('#is-sending');
+    const colorLists = ['text-bg-light', 'opacity-25'];
+    const eraseClass = 'd-none';
+    const tokenUrl = chats.dataset.tokenurl;
+    const streamUrl = chats.dataset.streamurl;
+    // Update scroll position
+    const updateScrollPosition = () => {
+      const element = document.documentElement;
+      const bottom = element.scrollHeight - element.clientHeight;
+      window.scroll(0, bottom);
+    };
+    // Define callback function
+    const callback = (chunk) => {
+      const addChatMessage = (content, type) => {
+        const pattern = {
+          HUMAN: 'You',
+          AI: 'AI',
+          FUNCTION: 'Func',
+          TOOL: 'Tool',
+        };
+        const clone = template.content.cloneNode(true);
+        const speakerType = clone.querySelector('.speaker-type');
+        const chatMessage = clone.querySelector('.chat-message');
+        const targetType = pattern[type];
+        speakerType.textContent = (targetType ? targetType : '');
+        chatMessage.textContent = content;
+        chats.appendChild(clone);
+      };
+      const convert2array = (outputs) => ((outputs) ? (Array.isArray(outputs) ? outputs : outputs.message) : []);
+      // ================
+      // = main process =
+      // ================
+      const {event, data} = chunk;
+
+      switch (event) {
+        // In the case of metadata
+        case 'metadata':
+          {
+            const { run_id } = JSON.parse(data);
+            _g_runID = run_id;
+          }
+          break;
+        // In the case of end statement
+        case 'end':
+          break;
+        // In the case of chat history or response messages
+        case 'history':
+        case 'data':
+          {
+            const messages = convert2array(data);
+            // Add received messages
+            for (const msg of messages) {
+              const content = msg.content;
+              const type = msg.type;
+              addChatMessage(content, type);
+            }
+          }
+          break;
+        // In the case of error message
+        case 'error':
+          {
+            const { error } = JSON.parse(data);
+            const element = document.querySelector('#error-message');
+            element.textContent = error;
+            errMsgModal.show();
+          }
+          break;
+
+        default:
+          break;
+      }
+    };
+    const createForm = (requestType, data) => {
+      const form = new FormData();
+      form.append('thread_pk', {{ thread.pk }});
+      form.append('request_type', requestType);
+      form.append('message', JSON.stringify(data));
+
+      return form;
+    };
+    // ==============
+    // Initialization
+    // ==============
+    // Add event listener
+    inputMessage.addEventListener('keyup', (event) => {
+      if ((event.key === 'Enter') && event.ctrlKey) {
+        sendBtn.click();
+      }
+    });
+    sendBtn.addEventListener('click', async (event) => {
+      const message = inputMessage.value.trim();
+      // Check if message is empty
+      if (!message) {
+        return;
+      }
+      // Define sent message
+      const input = (() => {
+        const role = 'human';
+
+        return [
+          {
+            content: message,
+            additional_kwargs: {},
+            type: role,
+            example: false,
+            id: (_g_runID) ? _g_runID : `${role}-${Math.random()}`,
+          }
+        ];
+      })();
+      // Update button status
+      sendBtn.disabled = true;
+      inputMessage.readOnly = true;
+      inputMessage.classList.add(...colorLists);
+      isReadyField.classList.add(eraseClass);
+      isSending.classList.remove(eraseClass);
+      // Send chat meesage
+      const form = createForm('chat_message', input);
+      const token = await getToken(tokenUrl);
+      await submit(streamUrl, token, form, callback);
+      // Update button status
+      sendBtn.disabled = false;
+      inputMessage.readOnly = false;
+      inputMessage.classList.remove(...colorLists);
+      isReadyField.classList.remove(eraseClass);
+      isSending.classList.add(eraseClass);
+      // Delete old message
+      inputMessage.value = '';
+      updateScrollPosition();
+    });
+    // Get chat history
+    (async () => {
+      const form = createForm('chat_history', {});
+      const token = await getToken(tokenUrl);
+      await submit(streamUrl, token, form, callback);
+      updateScrollPosition();
+
+      return;
+    })();
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // Validation
+    if ('content' in document.createElement('template')) {
+      init();
+    }
+    else {
+      const chats = document.querySelector('#chats');
+      const err = chats.dataset.err;
+      chats.innerHTML = `<p class="text-danger">${err}</p>`;
+    }
+  });
+})();
+</script>
 {% endblock %}

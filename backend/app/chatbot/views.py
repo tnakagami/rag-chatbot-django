@@ -1,3 +1,4 @@
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse
@@ -20,8 +21,7 @@ from view_breadcrumbs import (
   UpdateBreadcrumbMixin,
   DetailBreadcrumbMixin,
 )
-from . import forms
-from . import models
+from . import forms, models
 
 class JsonResponseMixin:
   raise_exception = True
@@ -94,6 +94,18 @@ class _CommonDeleteView(LoginRequiredMixin, IsOwner, DeleteView):
   success_url = None
   http_method_names = ['post']
 
+class JsonWebTokenView(LoginRequiredMixin, JsonResponseMixin, View):
+  http_method_names = ['get']
+
+  def get_context_data(self, *args, **kwargs):
+    refresh = RefreshToken.for_user(self.request.user)
+    access_token = str(refresh.access_token)
+    context = {
+      'token': access_token
+    }
+
+    return context
+
 class Index(LoginRequiredMixin, ListBreadcrumbMixin, ListView):
   model = models.Assistant
   template_name = 'chatbot/index.html'
@@ -105,6 +117,29 @@ class Index(LoginRequiredMixin, ListBreadcrumbMixin, ListView):
     user = self.request.user
 
     return self.model.objects.collection_with_docfiles(user=user)
+
+class TaskListView(LoginRequiredMixin, BaseBreadcrumbMixin, TemplateView):
+  template_name = 'chatbot/tasks.html'
+  crumbs = [
+    (gettext_lazy('Chatbot'), reverse_lazy('chatbot:index')),
+    (gettext_lazy('Tasks'), ''),
+  ]
+
+  def get_context_data(self, *args, **kwargs):
+    user = self.request.user
+    context = super().get_context_data(*args, **kwargs)
+    tasks = models.Assistant.objects.collect_own_tasks(user=user)
+    context['tasks'] = [
+      {
+        'task_id': record.task_id,
+        'name': record.task_name,
+        'status': record.status,
+        'created': models.convert_timezone(record.date_created),
+      }
+      for record in tasks
+    ]
+
+    return context
 
 class SettingListView(LoginRequiredMixin, BaseBreadcrumbMixin, TemplateView):
   template_name = 'chatbot/settings.html'
@@ -231,13 +266,14 @@ class AssistantDeleteView(_CommonDeleteView):
 # ================
 # = DocumentFile =
 # ================
-class DocumentFileCreateView(LoginRequiredMixin, IsOwner, BaseBreadcrumbMixin, TemplateView):
+class DocumentFileView(LoginRequiredMixin, IsOwner, BaseBreadcrumbMixin, TemplateView):
   raise_exception = True
   template_name = 'chatbot/document_file_form.html'
   crumbs = [
     (gettext_lazy('Chatbot'), reverse_lazy('chatbot:index')),
     (gettext_lazy('Create document file'), ''),
   ]
+  http_method_names = ['get']
 
   def get_object(self):
     pk = self.kwargs.get('assistant_pk')
@@ -248,6 +284,7 @@ class DocumentFileCreateView(LoginRequiredMixin, IsOwner, BaseBreadcrumbMixin, T
   def get_context_data(self, *args, **kwargs):
     context = super().get_context_data(*args, **kwargs)
     context['docfile_url'] = reverse('api:chatbot:docfile_list')
+    context['token_url'] = reverse('chatbot:token')
     context['assistant_pk'] = self.kwargs.get('assistant_pk')
 
     return context
@@ -333,6 +370,13 @@ class ThreadDetailView(LoginRequiredMixin, IsOwner, DetailBreadcrumbMixin, Detai
     (gettext_lazy('Assistant'), self._get_parent_link()),
     (gettext_lazy('Thread'), ''),
   ]
+
+  def get_context_data(self, *args, **kwargs):
+    context = super().get_context_data(*args, **kwargs)
+    context['token_url'] = reverse('chatbot:token')
+    context['stream_url'] = reverse('api:chatbot:event_stream')
+
+    return context
 
 class ThreadDeleteView(_CommonDeleteView):
   model = models.Thread

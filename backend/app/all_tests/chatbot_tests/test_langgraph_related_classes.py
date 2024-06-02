@@ -68,8 +68,8 @@ def create_checkpoints_of_different_thread(django_db_blocker):
 @pytest.mark.parametrize([
   'thread_id', 'thread_ts', 'exptected_ts', 'expected_config',
 ], [
-  (3, '2010-01-22T18:54:32', datetime(2010,1,22,18,54,32), {'configrable': {'thread_id': 3, 'thread_ts': '2010-01-22T18:54:32'}}),
-  (3, datetime(2010,1,22,0,0,0), datetime(2010,1,22,0,0,0), {'configrable': {'thread_id': 3, 'thread_ts': '2010-01-22T00:00:00'}}),
+  (3, '2010-01-22T18:54:32', datetime(2010,1,22,18,54,32), {'configurable': {'thread_id': 3, 'thread_ts': '2010-01-22T18:54:32'}}),
+  (3, datetime(2010,1,22,0,0,0), datetime(2010,1,22,0,0,0), {'configurable': {'thread_id': 3, 'thread_ts': '2010-01-22T00:00:00'}}),
 ], ids=['is-isoformat', 'is-datetime-format'])
 def test_check_checkpoint_of_valid_config(thread_id, thread_ts, exptected_ts, expected_config):
   instance = _ThreadConfig(thread_id=thread_id, thread_ts=thread_ts)
@@ -110,7 +110,7 @@ def test_check_list_method_of_checkpoint(get_checkpoint_instance, create_checkpo
   outputs = instance.list(config)
   conf1st, _, conf2nd = next(outputs)
   conf3rd, _, no_prev = next(outputs)
-  _key = 'configrable'
+  _key = 'configurable'
 
   assert _key in conf1st.keys()
   assert _key in conf2nd.keys()
@@ -148,7 +148,7 @@ def test_check_get_tuple_method_of_checkpoint(get_checkpoint_instance, create_ch
   getter = create_checkpoints_of_same_thread
   thread_id, current_ts, previous_ts, config = getter()
   conf1st, _, conf2nd = instance.get_tuple(config)
-  _key = 'configrable'
+  _key = 'configurable'
 
   assert _key in conf1st.keys()
   assert _key in conf2nd.keys()
@@ -165,7 +165,7 @@ def test_check_get_tuple_method_of_different_checkpoint(get_checkpoint_instance,
   getter = create_checkpoints_of_different_thread
   thread_id, timestamp, config = getter()
   conf1st, _, conf2nd = instance.get_tuple(config)
-  _key = 'configrable'
+  _key = 'configurable'
 
   assert _key in conf1st.keys()
   assert conf1st[_key]['thread_id'] == thread_id
@@ -206,12 +206,12 @@ def test_check_put_method_when_no_previous_exists(get_checkpoint_instance):
   thread_id = thread.pk
   current_time = make_aware(datetime(2001,2,3,10,12,9))
   timestamp = _convert_datetime2isoformat(current_time)
-  config = RunnableConfig({'configrable': {'thread_id': thread_id, 'thread_ts': None}})
+  config = RunnableConfig({'configurable': {'thread_id': thread_id, 'thread_ts': None}})
   checkpoint = empty_checkpoint()
   checkpoint['ts'] = timestamp
   # Execute target method
   out = instance.put(config, checkpoint)
-  _key = 'configrable'
+  _key = 'configurable'
 
   assert _key in out.keys()
   assert out[_key]['thread_id'] == thread_id
@@ -232,7 +232,7 @@ def test_check_put_method_when_previous_exists(get_checkpoint_instance, create_c
   checkpoint['ts'] = timestamp
   # Execute target method
   out = instance.put(config, checkpoint)
-  _key = 'configrable'
+  _key = 'configurable'
 
   assert out[_key]['thread_id'] == thread_id
   assert out[_key]['thread_ts'] == timestamp
@@ -264,7 +264,7 @@ async def test_check_alist_method_of_checkpoint(get_checkpoint_instance, create_
   outputs = instance.alist(config)
   conf1st, _, conf2nd = await anext(outputs)
   conf3rd, _, no_prev = await anext(outputs)
-  _key = 'configrable'
+  _key = 'configurable'
 
   assert _key in conf1st.keys()
   assert _key in conf2nd.keys()
@@ -309,7 +309,7 @@ async def test_check_aget_tuple_method_of_checkpoint(get_checkpoint_instance, cr
   getter = create_checkpoints_of_same_thread
   thread_id, current_ts, previous_ts, config = await sync_to_async(getter)()
   conf1st, _, conf2nd = await instance.aget_tuple(config)
-  _key = 'configrable'
+  _key = 'configurable'
 
   assert _key in conf1st.keys()
   assert _key in conf2nd.keys()
@@ -371,7 +371,7 @@ async def test_check_aput_method(get_checkpoint_instance, create_checkpoints_of_
   checkpoint['ts'] = timestamp
   # Execute target method
   out = await instance.aput(config, checkpoint)
-  _key = 'configrable'
+  _key = 'configurable'
   filtered_query = await sync_to_async(instance.manager.filter)(
     thread__pk=thread_id,
     current_time=new_time,

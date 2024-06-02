@@ -30,6 +30,23 @@
   </div>
 </div>
 
+<div class="row justify-content-center p-2">
+  <div class="col">
+    <div class="row">
+      <div class="col">
+        <p class="h4">{% trans "Background tasks" %}</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col">
+        <a href="{% url 'chatbot:tasks' %}" class="btn btn-outline-dark w-100 custom-boxshadow-effect">
+          {% trans "Check own tasks" %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
 {# Assistant list #}
 <div class="row justify-content-center p-2">
   <div class="col">
@@ -46,7 +63,7 @@
           {{ assistant }}
         </a>
         <div class="collapse py-2" id="document-files{{ forloop.counter }}">
-          {% for docfile in assistant.docfiles.all %}
+          {% for docfile in assistant.docfiles.active %}
           <div class="row align-items-center ms-2 me-0 border border-end-0 {% if forloop.counter > 1 %}border-top-0{% endif %}">
             <div class="col-10 border-end text-break">
               {{ docfile }}

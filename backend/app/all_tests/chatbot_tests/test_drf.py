@@ -1,6 +1,10 @@
 import pytest
 import json
-from chatbot import drf_views, models
+from chatbot import (
+  drf_views,
+  models,
+  serializers as chatbot_serializers,
+)
 from chatbot.models.agents import AgentType, ToolType
 # For test
 from importlib import import_module, reload
@@ -8,7 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.test import APIRequestFactory
 from rest_framework import status, serializers
 from rest_framework.reverse import reverse
-from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.files.uploadedfile import SimpleUploadedFile, InMemoryUploadedFile
 from django.test.client import MULTIPART_CONTENT, encode_multipart, BOUNDARY
 from . import factories
 
@@ -73,6 +77,38 @@ def test_drf_config_formats(viewset, target, type_id, getter, kwargs):
   assert 'name' in estimated_keys
   assert 'format' in estimated_keys
   assert expected_config == outputs['format']
+
+@pytest.mark.chatbot
+@pytest.mark.drf
+@pytest.mark.django_db
+def test_drf_celery_tasks():
+  user, other = factories.UserFactory.create_batch(2)
+  assistants_for_user = factories.AssistantFactory.create_batch(
+    2,
+    user=user,
+    agent=factories.AgentFactory(user=user),
+    embedding=factories.EmbeddingFactory(user=user),
+  )
+  assistant_for_other = factories.AssistantFactory(
+    user=other,
+    agent=factories.AgentFactory(user=other),
+    embedding=factories.EmbeddingFactory(user=other),
+  )
+  # Create tasks
+  for _assistant in assistants_for_user:
+    for task in factories.TaskResultFactory.create_batch(2):
+      _assistant.set_task_result(task.task_id, user.pk)
+  for task in factories.TaskResultFactory.create_batch(3):
+    assistant_for_other.set_task_result(task.task_id, other.pk)
+  factory = APIRequestFactory()
+  view = drf_views.AssistantViewSet.as_view({'get': 'get_tasks'})
+  url = reverse('api:chatbot:assistant_tasks')
+  refresh = RefreshToken.for_user(user)
+  request = factory.get(url, HTTP_AUTHORIZATION=f'JWT {refresh.access_token}')
+  response = view(request)
+  outputs = response.data
+
+  assert all(['embedding process' in record['task_name'] for record in outputs['tasks']])
 
 # ==================
 # = Common fixture =
@@ -160,19 +196,19 @@ def test_drf_list_method(drf_list_create_settings, factory_class, target):
 @pytest.mark.chatbot
 @pytest.mark.drf
 @pytest.mark.django_db
-@pytest.mark.parametrize('factory_class,target', [
-  (factories.DocumentFileFactory, 'docfile'),
-  (factories.ThreadFactory, 'thread'),
+@pytest.mark.parametrize('factory_class,kwargs,target', [
+  (factories.DocumentFileFactory, {'is_active': True}, 'docfile'),
+  (factories.ThreadFactory, {}, 'thread'),
 ], ids=['documentfile-list', 'thread-list'])
-def test_drf_docfile_and_thread_list_method(drf_list_create_settings, factory_class, target):
+def test_drf_docfile_and_thread_list_method(drf_list_create_settings, factory_class, kwargs, target):
   _callbacks = drf_list_create_settings
   callback = _callbacks[target]
   expected_count = 4
   user, other = factories.UserFactory.create_batch(2)
   user_assistant = factories.AssistantFactory(user=user)
   other_assistant = factories.AssistantFactory(user=other)
-  _ = factory_class.create_batch(expected_count, assistant=user_assistant)
-  _ = factory_class.create_batch(3, assistant=other_assistant)
+  _ = factory_class.create_batch(expected_count, assistant=user_assistant, **kwargs)
+  _ = factory_class.create_batch(3, assistant=other_assistant, **kwargs)
   refresh = RefreshToken.for_user(user)
   response = callback('get', HTTP_AUTHORIZATION=f'JWT {refresh.access_token}')
 
@@ -274,16 +310,16 @@ def test_drf_destroy_method(drf_retrieve_update_destroy_settings, factory_class,
 @pytest.mark.chatbot
 @pytest.mark.drf
 @pytest.mark.django_db
-@pytest.mark.parametrize('factory_class,model_class,target', [
-  (factories.DocumentFileFactory, models.DocumentFile, 'docfile'),
-  (factories.ThreadFactory, models.Thread, 'thread'),
+@pytest.mark.parametrize('factory_class,kwargs,model_class,target', [
+  (factories.DocumentFileFactory, {'is_active': True}, models.DocumentFile, 'docfile'),
+  (factories.ThreadFactory, {}, models.Thread, 'thread'),
 ], ids=['documentfile-destroy', 'thread-destroy'])
-def test_drf_docfile_and_thread_destroy_method(drf_retrieve_update_destroy_settings, factory_class, model_class, target):
+def test_drf_docfile_and_thread_destroy_method(drf_retrieve_update_destroy_settings, factory_class, kwargs, model_class, target):
   _callbacks = drf_retrieve_update_destroy_settings
   callback = _callbacks[target]
   user = factories.UserFactory()
   assistant = factories.AssistantFactory(user=user)
-  instance = factory_class(assistant=assistant)
+  instance = factory_class(assistant=assistant, **kwargs)
   refresh = RefreshToken.for_user(user)
   response = callback(instance.pk, 'delete', HTTP_AUTHORIZATION=f'JWT {refresh.access_token}')
   total = model_class.objects.all().count()
@@ -569,6 +605,7 @@ def get_specific_assistant():
 @pytest.mark.drf
 @pytest.mark.django_db
 @pytest.mark.parametrize('num,ext', [
+  (0, 'txt'),
   (1, 'txt'),
   (2, 'pdf'),
   (3, 'docx'),
@@ -585,9 +622,36 @@ def test_drf_docfile_creation(drf_list_create_settings, get_specific_assistant, 
 
       return [str(docfile_id)]
 
+  def wrapper(assistant_pk, files, user_pk):
+    from django.core.files import File
+    from django.core.files.storage import FileSystemStorage
+    from pathlib import Path
+    from celery.result import AsyncResult
+    storage = FileSystemStorage()
+    filefields = []
+
+    for target in files:
+      name = target['name']
+      path_info = Path(target['path'])
+      filefields += [File(path_info.open(mode='rb'), name=name)]
+
+    assistant = models.Assistant.objects.get_or_none(pk=assistant_pk)
+    ids = models.DocumentFile.from_files(assistant, filefields)
+    task = factories.TaskResultFactory()
+
+    for field, target in zip(filefields, files):
+      saved_name = target['saved_name']
+
+      if not field.closed:
+        field.close()
+      storage.delete(saved_name)
+
+    return AsyncResult(task.task_id)
+
   module = import_module('chatbot.models.utils.ingest')
   _ = getattr(module, 'IngestBlobRunnable')
   mocker.patch('chatbot.models.rag.IngestBlobRunnable', new=DummyIngest)
+  mocker.patch('chatbot.tasks.embedding_process.delay', side_effect=wrapper)
   reload(module)
 
   getter = get_specific_assistant
@@ -609,7 +673,7 @@ def test_drf_docfile_creation(drf_list_create_settings, get_specific_assistant, 
   )
   total = models.DocumentFile.objects.all().count()
 
-  assert response.status_code == status.HTTP_201_CREATED
+  assert response.status_code == status.HTTP_202_ACCEPTED
   assert total == num
 
 @pytest.mark.chatbot
@@ -621,27 +685,13 @@ def test_drf_docfile_creation(drf_list_create_settings, get_specific_assistant, 
   (2, 'dat'),
 ], ids=lambda value: f'{value}')
 def test_drf_invalid_pattern_of_docfile_creation(drf_list_create_settings, get_specific_assistant, mocker, num, ext):
-  class DummyIngest:
-    def __init__(self, *args, **kwargs):
-      pass
-    def convert_input2blob(self, *args, **kwargs):
-      return object()
-    def invoke(self, *args, **kwargs):
-      docfile_id = kwargs.get('docfile_id')
-
-      return [str(docfile_id)]
-
-  module = import_module('chatbot.models.utils.ingest')
-  _ = getattr(module, 'IngestBlobRunnable')
-  mocker.patch('chatbot.models.rag.IngestBlobRunnable', new=DummyIngest)
-  reload(module)
-
+  filename = 'test'
   getter = get_specific_assistant
   _callbacks = drf_list_create_settings
   callback = _callbacks['docfile']
   user = factories.UserFactory()
   assistant = getter(user)
-  file_fields = [SimpleUploadedFile(f'test.{ext}', f'This is a {idx+1}th-sample'.encode('utf-8')) for idx in range(num)]
+  file_fields = [SimpleUploadedFile(f'{filename}.{ext}', f'This is a {idx+1}th-sample'.encode('utf-8')) for idx in range(num)]
   form_data = {
     'assistant_pk': assistant.pk,
     'upload_files': file_fields,
@@ -654,9 +704,53 @@ def test_drf_invalid_pattern_of_docfile_creation(drf_list_create_settings, get_s
     content_type=MULTIPART_CONTENT,
   )
   total = models.DocumentFile.objects.all().count()
+  output = response.data['upload_files']
 
   assert response.status_code == status.HTTP_400_BAD_REQUEST
+  assert 'Invalid extension' in str(output[filename])
   assert total == 0
+
+@pytest.mark.chatbot
+@pytest.mark.drf
+@pytest.mark.django_db
+@pytest.mark.parametrize('filesize,expected_status,err', [
+  (10*1024*1024, status.HTTP_202_ACCEPTED, {}),
+  (10*1024*1024+1, status.HTTP_400_BAD_REQUEST, {'file_size': 'Max file size'}),
+], ids=['valid-filesize', 'invalid-filesize'])
+def test_drf_filesize_of_docfile_creation(drf_list_create_settings, get_specific_assistant, mocker, filesize, expected_status, err):
+  filename = 'test.txt'
+  content_type = 'text/plain'
+
+  mocker.patch('chatbot.serializers.DocumentFileSerializer.save', return_value=None)
+  mocker.patch('django.core.files.uploadhandler.MemoryFileUploadHandler.file_complete', return_value=InMemoryUploadedFile(
+    file=b'',
+    field_name=None,
+    name=filename,
+    content_type=content_type,
+    size=filesize,
+    charset=None,
+  ))
+
+  getter = get_specific_assistant
+  _callbacks = drf_list_create_settings
+  callback = _callbacks['docfile']
+  user = factories.UserFactory()
+  assistant = getter(user)
+  file_fields = [SimpleUploadedFile(name=filename, content=b'', content_type=content_type)]
+  form_data = {
+    'assistant_pk': assistant.pk,
+    'upload_files': file_fields,
+  }
+  refresh = RefreshToken.for_user(user)
+  response = callback(
+    'post',
+    HTTP_AUTHORIZATION=f'JWT {refresh.access_token}',
+    data=encode_multipart(data=form_data, boundary=BOUNDARY),
+    content_type=MULTIPART_CONTENT,
+  )
+
+  assert response.status_code == expected_status
+  assert len(response.data) == 0 if len(err) == 0 else all([value in str(response.data['upload_files'][key]) for key, value in err.items()])
 
 @pytest.mark.chatbot
 @pytest.mark.drf
@@ -1100,3 +1194,36 @@ def test_drf_invalid_docfiles_of_partial_update(drf_retrieve_update_destroy_sett
   assert errs is not None
   assert 'Invalid docfiles exist' in str(errs[0])
   assert total == 1
+
+@pytest.mark.chatbot
+@pytest.mark.drf
+@pytest.mark.django_db
+@pytest.mark.parametrize('filesize,expected', [
+  (1023, '1023.0B'),
+  (1024, '1.0KiB'),
+  (1024*1024-1, '1024.0KiB'),
+  (1024*1024, '1.0MiB'),
+  (1024*1024*1024.0-1, '1024.0MiB'),
+  (1024*1024*1024.0, '1.0GiB'),
+  (1024*1024*1024.0*1024.0-1, '1024.0GiB'),
+  (1024*1024*1024.0*1024.0, '1.0TiB'),
+  (1024*1024*1024.0*1024.0*1025.0, '1025.0TiB'),
+], ids=[
+  'filesize-1023.0B',
+  'filesize-1.0KiB',
+  '1024.0KiB',
+  '1.0MiB',
+  '1024.0MiB',
+  '1.0GiB',
+  '1024.0GiB',
+  '1.0TiB',
+  '1025.0TiB',
+])
+def test_check_convert_human_readable_filesize_of_documentfile_serializer(filesize, expected):
+  user = factories.UserFactory()
+  assistant = factories.AssistantFactory(user=user)
+  data = {'assistant_pk': assistant.pk}
+  serializer = chatbot_serializers.DocumentFileSerializer(data=data)
+  out = serializer._convert_human_readable_filesize(filesize)
+
+  assert out == expected

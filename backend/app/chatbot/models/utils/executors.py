@@ -73,6 +73,8 @@ class _BaseExecutor:
       input_type=Messages,
       output_type=Sequence[AnyMessage],
     )
+    # Add custom field of `_is_streaming`
+    app.__dict__['_is_streaming'] = getattr(self.llm, 'streaming', False)
 
     return app
 

@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load humanize %}
+
+{% block content %}
+{% include 'breadcrubs.html' with title=_("Chatbot - Tasks") %}
+<div class="row justify-content-center mt-2 p-2">
+  <div class="col">
+    <div class="row">
+      <div class="col">
+        <p class="h4">{% trans "Tasks" %}</p>
+      </div>
+    </div>
+    {% for task in tasks %}
+    <div class="row row-cols-1 row-cols-md-2 g-2 mx-2">
+      <div class="col">
+        <div class="card">
+          <div class="card-header">
+            <strong>ID:</strong>{{ task.task_id }}
+          </div>
+          <div class="card-body">
+            <p class="h5 card-title">{{ task.name }}</p>
+            <ul>
+              <li><strong>{% trans "Status" %}:</strong>{{ task.status }}</li>
+              <li><strong>{% trans "Created" %}:</strong>{{ task.created|naturaltime }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="row mx-2">
+      <div class="col">
+        <p>{% trans "No tasks exist." %}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# Back to previous page #}
+<div class="row justify-content-center my-2 p-2">
+  <div class="col">
+    <a href="{% url 'chatbot:index' %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
+      {% trans "Back" %}
+    </a>
+  </div>
+</div>
+{% endblock %}

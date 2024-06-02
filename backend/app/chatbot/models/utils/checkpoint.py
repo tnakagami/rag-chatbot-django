@@ -32,7 +32,7 @@ class _ThreadConfig:
   def get_config_dict(self) -> Union[dict, None]:
     if self.thread_ts:
       config = {
-        'configrable': {
+        'configurable': {
           'thread_id': self.thread_id,
           'thread_ts': self.thread_ts.isoformat(),
         }
@@ -93,7 +93,7 @@ class DjangoPostgresCheckpoint(BaseCheckpointSaver):
       return value.checkpoint
 
   def get_tuple(self, config: RunnableConfig) -> Optional[CheckpointTuple]:
-    runnable_config = config['configrable']
+    runnable_config = config['configurable']
     target = _ThreadConfig(
       thread_id=runnable_config.get('thread_id'),
       thread_ts=runnable_config.get('thread_ts'),
@@ -104,7 +104,7 @@ class DjangoPostgresCheckpoint(BaseCheckpointSaver):
     return result
 
   def list(self, config: RunnableConfig) -> Iterator[CheckpointTuple]:
-    runnable_config = config['configrable']
+    runnable_config = config['configurable']
     target = _ThreadConfig(thread_id=runnable_config.get('thread_id'))
     queryset = self.manager.collect_checkpoints(target.thread_id, target.thread_ts)
 
@@ -114,7 +114,7 @@ class DjangoPostgresCheckpoint(BaseCheckpointSaver):
       yield result
 
   def put(self, config: RunnableConfig, checkpoint: Checkpoint) -> RunnableConfig:
-    runnable_config = config['configrable']
+    runnable_config = config['configurable']
     thread_id = runnable_config.get('thread_id')
     current = _ThreadConfig(thread_id=thread_id, thread_ts=checkpoint['ts'])
     previous = _ThreadConfig(thread_id=thread_id, thread_ts=runnable_config.get('thread_ts'))
@@ -136,7 +136,7 @@ class DjangoPostgresCheckpoint(BaseCheckpointSaver):
     return await run_in_executor(None, self.get_tuple, config)
 
   async def alist(self, config: RunnableConfig) -> AsyncIterator[CheckpointTuple]:
-    runnable_config = config['configrable']
+    runnable_config = config['configurable']
     target = _ThreadConfig(thread_id=runnable_config.get('thread_id'))
     queryset = await sync_to_async(self.manager.collect_checkpoints)(target.thread_id, target.thread_ts)
 

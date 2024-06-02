@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+from chatbot.models.agents import AgentType, ToolType
 
 @pytest.fixture
 def client_non_proxy_checker():
@@ -55,3 +56,72 @@ def get_normalizer():
     return arr / np.linalg.norm(arr, axis=axis)
 
   return inner
+
+
+@pytest.fixture
+def get_agent_types():
+  kwargs = {label: val for val, label in AgentType.choices}
+
+  return kwargs
+
+@pytest.fixture
+def get_embedding_types():
+  kwargs = {label: val for val, label in AgentType.embedding_choices}
+
+  return kwargs
+
+@pytest.fixture
+def get_tool_types():
+  kwargs = {label: val for val, label in ToolType.choices}
+
+  return kwargs
+
+def ids(value):
+  return f'{value}'
+
+@pytest.fixture(params=[label for _, label in AgentType.choices], ids=ids)
+def get_target_agent_type(request):
+  kwargs = request.getfixturevalue('get_agent_types')
+  key = request.param
+  val = kwargs[key]
+
+  return key, val
+
+@pytest.fixture(params=[label for _, label in AgentType.embedding_choices], ids=ids)
+def get_target_embedding_type(request):
+  kwargs = request.getfixturevalue('get_embedding_types')
+  key = request.param
+  val = kwargs[key]
+
+  return key, val
+
+@pytest.fixture(params=[
+  ToolType.RETRIEVER.label,
+  ToolType.ACTION_SERVER.label,
+  ToolType.CONNERY_ACTION.label,
+  ToolType.DALLE_TOOL.label,
+  ToolType.KAY_SEC_FILINGS.label,
+  ToolType.KAY_PRESS_RELEASES.label,
+  ToolType.TAVILY_SEARCH.label,
+  ToolType.TAVILY_ANSWER.label,
+  ToolType.YOU_SEARCH.label,
+], ids=ids)
+def get_target_tool_type_with_config(request):
+  kwargs = request.getfixturevalue('get_tool_types')
+  key = request.param
+  val = kwargs[key]
+
+  return key, val
+
+@pytest.fixture(params=[
+  ToolType.ARXIV.label,
+  ToolType.DDG_SEARCH.label,
+  ToolType.PUBMED.label,
+  ToolType.WIKIPEDIA.label,
+], ids=ids)
+def get_target_tool_type_without_config(request):
+  kwargs = request.getfixturevalue('get_tool_types')
+  key = request.param
+  val = kwargs[key]
+
+  return key, val

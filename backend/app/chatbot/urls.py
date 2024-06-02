@@ -3,7 +3,9 @@ from . import views
 
 urlpatterns = [
   path('', views.Index.as_view(), name='index'),
-  path('settings/', views.SettingListView.as_view(), name='settings'),
+  path('tasks', views.TaskListView.as_view(), name='tasks'),
+  path('settings', views.SettingListView.as_view(), name='settings'),
+  path('settings/token', views.JsonWebTokenView.as_view(), name='token'),
   # Agent
   path('settings/config/agent', views.AgentConfigFormCollection.as_view(), name='collect_agent_config'),
   path('settings/create/agent', views.AgentCreateView.as_view(), name='create_agent'),
@@ -25,7 +27,7 @@ urlpatterns = [
   path('detail/assistant/<int:pk>', views.AssistantDetailView.as_view(), name='detail_assistant'),
   path('delete/assistant/<int:pk>', views.AssistantDeleteView.as_view(), name='delete_assistant'),
   # DocumentFile
-  path('create/docfile/<int:assistant_pk>', views.DocumentFileCreateView.as_view(), name='create_docfile'),
+  path('create/docfile/<int:assistant_pk>', views.DocumentFileView.as_view(), name='create_docfile'),
   path('delete/docfile/<int:pk>', views.DocumentFileDeleteView.as_view(), name='delete_docfile'),
   # Thread
   path('create/thread/<int:assistant_pk>', views.ThreadCreateView.as_view(), name='create_thread'),

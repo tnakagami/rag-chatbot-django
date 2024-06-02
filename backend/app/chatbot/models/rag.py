@@ -1,8 +1,12 @@
 import logging
 from typing import Dict, List, Union, Tuple
+from zoneinfo import ZoneInfo
+from celery import states
+from django.conf import settings
 from django.db import models, NotSupportedError
 from django.utils.translation import gettext_lazy
 from django.contrib.auth import get_user_model
+from django_celery_results.models import TaskResult
 from pgvector.django import VectorField, L2Distance, CosineDistance, MaxInnerProduct
 from picklefield.fields import PickledObjectField
 from .agents import AgentArgs, ToolArgs, AgentType, ToolType
@@ -13,10 +17,25 @@ from .utils.ingest import IngestBlobRunnable
 User = get_user_model()
 g_logger = logging.getLogger(__name__)
 
+def convert_timezone(target_datatime, is_string=False):
+  timezone = ZoneInfo(settings.TIME_ZONE)
+  output = target_datatime.astimezone(timezone)
+
+  if is_string:
+    output = output.strftime('%Y-%m-%d %H:%M:%S.%f')
+
+  return output
+
 class BaseManager(models.Manager):
   def get_or_none(self, **kwargs):
     try:
       return self.get_queryset().get(**kwargs)
+    except self.model.DoesNotExist:
+      return None
+
+  async def aget_or_none(self, **kwargs):
+    try:
+      return await self.get_queryset().aget(**kwargs)
     except self.model.DoesNotExist:
       return None
 
@@ -185,6 +204,22 @@ class AssistantManager(BaseManager):
   def collection_with_docfiles(self, **kwargs):
     return self.get_queryset().prefetch_related('docfiles').filter(**kwargs)
 
+  def collect_own_tasks(self, **kwargs):
+    user = kwargs.get('user', None)
+    assistant = kwargs.get('assistant', None)
+
+    if user is None and assistant is None:
+      raise NotSupportedError
+    # Collect user's tasks
+    params = {
+      'user': user,
+      'assistant': assistant,
+    }
+    content = ','.join([f'{key}={instance.pk}' for key, instance in params.items() if instance is not None])
+    queryset = TaskResult.objects.exclude(status=states.SUCCESS).filter(task_kwargs__icontains=content)
+
+    return queryset
+
 class Assistant(models.Model):
   class Meta:
     ordering = ['pk']
@@ -237,7 +272,7 @@ class Assistant(models.Model):
   def is_owner(self, user):
     return self.user.pk == user.pk
 
-  def get_assistant(self, docfile_ids=None):
+  def get_executor(self, docfile_ids=None):
     if docfile_ids is None or not isinstance(docfile_ids, list):
       docfile_ids = []
 
@@ -263,13 +298,23 @@ class Assistant(models.Model):
       system_message=self.system_message,
       is_interrupt=self.is_interrupt,
     )
-    assistant = self.agent.get_executor(agent_args)
+    executor = self.agent.get_executor(agent_args)
 
-    return assistant
+    return executor
+
+  def set_task_result(self, task_id, user_pk):
+    assistant_pk = self.pk
+    task = TaskResult.objects.get_task(task_id)
+    task.task_name = f'embedding process ({self})'
+    task.task_kwargs = f"{{'info': 'user={user_pk},assistant={assistant_pk}'}}"
+    task.save()
 
 class DocumentFileManager(BaseManager):
   def collect_own_files(self, user):
-    return self.get_queryset().filter(assistant__user=user)
+    return self.get_queryset().filter(assistant__user=user, is_active=True)
+
+  def active(self):
+    return self.filter(is_active=True)
 
 class DocumentFile(models.Model):
   MAX_FILENAME_LENGTH = 255
@@ -288,6 +333,12 @@ class DocumentFile(models.Model):
     max_length=MAX_FILENAME_LENGTH,
     blank=True,
     help_text=gettext_lazy(f'{MAX_FILENAME_LENGTH} characters or fewer.'),
+  )
+  is_active = models.BooleanField(
+    gettext_lazy('Document status'),
+    blank=True,
+    default=False,
+    help_text=gettext_lazy('If True, the embedding process is finished.'),
   )
 
   objects = DocumentFileManager()
@@ -316,11 +367,19 @@ class DocumentFile(models.Model):
       instance = cls.objects.create(
         assistant=assistant,
         name=field.name,
+        is_active=False,
       )
-      blob = runnable.convert_input2blob(field)
 
       try:
+        if field.closed:
+          field.open(field.mode)
+        # Create blob data
+        blob = runnable.convert_input2blob(field)
+        # Create embedding vector from blob data
         current_ids = runnable.invoke(blob, docfile_id=instance.pk)
+        # Update document status
+        instance.is_active = True
+        instance.save()
         ids.extend(current_ids)
       except Exception as ex:
         g_logger.warn(f'DocumentFile[from_files]{ex}')
@@ -359,6 +418,12 @@ class Thread(models.Model):
 
   def is_owner(self, user):
     return self.assistant.is_owner(user)
+
+  def get_executor(self):
+    docfile_ids = self.docfiles.all().values_list('pk', flat=True)
+    executor = self.assistant.get_executor(docfile_ids=docfile_ids)
+
+    return executor
 
 class EmbeddingStoreQuerySet(models.QuerySet):
   def similarity_search_with_distance_by_vector(self, embedded_query, distance_strategy, **kwargs):

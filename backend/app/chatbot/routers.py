@@ -33,6 +33,12 @@ class CustomSimpleRouter(SimpleRouter):
       detail=False,
       initkwargs={'suffix': 'List'},
     ),
+    DynamicRoute(
+      url=r'^{prefix}/{url_path}{trailing_slash}$',
+      name='{basename}_{url_name}',
+      detail=False,
+      initkwargs={},
+    ),
     Route(
       url=r'^{prefix}/{lookup}{trailing_slash}$',
       mapping={'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'},

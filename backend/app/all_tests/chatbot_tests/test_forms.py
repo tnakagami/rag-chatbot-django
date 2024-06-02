@@ -22,71 +22,6 @@ def get_form_kwargs():
 
   return kwargs
 
-@pytest.fixture
-def get_agent_types():
-  kwargs = {label: val for val, label in AgentType.choices}
-
-  return kwargs
-
-@pytest.fixture
-def get_embedding_types():
-  kwargs = {label: val for val, label in AgentType.embedding_choices}
-
-  return kwargs
-
-@pytest.fixture
-def get_tool_types():
-  kwargs = {label: val for val, label in ToolType.choices}
-
-  return kwargs
-
-@pytest.fixture(params=[label for _, label in AgentType.choices], ids=ids)
-def get_target_agent_type(request):
-  kwargs = request.getfixturevalue('get_agent_types')
-  key = request.param
-  val = kwargs[key]
-
-  return key, val
-
-@pytest.fixture(params=[label for _, label in AgentType.embedding_choices], ids=ids)
-def get_target_embedding_type(request):
-  kwargs = request.getfixturevalue('get_embedding_types')
-  key = request.param
-  val = kwargs[key]
-
-  return key, val
-
-@pytest.fixture(params=[
-  ToolType.RETRIEVER.label,
-  ToolType.ACTION_SERVER.label,
-  ToolType.CONNERY_ACTION.label,
-  ToolType.DALLE_TOOL.label,
-  ToolType.KAY_SEC_FILINGS.label,
-  ToolType.KAY_PRESS_RELEASES.label,
-  ToolType.TAVILY_SEARCH.label,
-  ToolType.TAVILY_ANSWER.label,
-  ToolType.YOU_SEARCH.label,
-], ids=ids)
-def get_target_tool_type_with_config(request):
-  kwargs = request.getfixturevalue('get_tool_types')
-  key = request.param
-  val = kwargs[key]
-
-  return key, val
-
-@pytest.fixture(params=[
-  ToolType.ARXIV.label,
-  ToolType.DDG_SEARCH.label,
-  ToolType.PUBMED.label,
-  ToolType.WIKIPEDIA.label,
-], ids=ids)
-def get_target_tool_type_without_config(request):
-  kwargs = request.getfixturevalue('get_tool_types')
-  key = request.param
-  val = kwargs[key]
-
-  return key, val
-
 @pytest.mark.chatbot
 @pytest.mark.form
 @pytest.mark.django_db
@@ -429,6 +364,23 @@ def test_check_invalid_input_for_assistant_form(input_param, item_list):
 @pytest.mark.chatbot
 @pytest.mark.form
 @pytest.mark.django_db
+def test_check_invalid_tool_pks_for_assistant_form():
+  user = factories.UserFactory()
+  tools = factories.ToolFactory.create_batch(2, user=user)
+  max_pk = models.Tool.objects.order_by('-pk').first().pk
+  form_param = {
+    'name': 'test',
+    'agent': factories.AgentFactory(user=user),
+    'embedding': factories.EmbeddingFactory(user=user),
+    'tools': [max_pk + 1],
+  }
+  form = forms.AssistantForm(data=form_param, user=user)
+
+  assert not form.is_valid()
+
+@pytest.mark.chatbot
+@pytest.mark.form
+@pytest.mark.django_db
 @pytest.mark.parametrize('pattern,name',[
   ({'agent': 'other', 'embedding': 'own',   'tool': 'own'},   'invalid-agent'),
   ({'agent': 'own',   'embedding': 'other', 'tool': 'own'},   'invalid-embedding'),
@@ -442,12 +394,12 @@ def test_check_not_owner_input_for_assistant_form(pattern, name):
     users[key] = _user
     agents[key] = factories.AgentFactory(user=_user)
     embeddings[key] = factories.EmbeddingFactory(user=_user)
-    tools[key] = factories.ToolFactory(user=_user)
+    tools[key] = factories.ToolFactory.create_batch(2, user=_user)
 
   form_param = {
     'agent': agents[pattern['agent']].pk,
     'embedding': embeddings[pattern['embedding']].pk,
-    'tools': [tools[pattern['tool']].pk],
+    'tools': [item.pk for item in tools[pattern['tool']]],
   }
   form = forms.AssistantForm(data=form_param, user=users['own'])
 
