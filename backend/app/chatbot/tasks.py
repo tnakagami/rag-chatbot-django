@@ -8,7 +8,7 @@ from . import models
 
 g_logger = get_task_logger(__name__)
 
-@shared_task
+@shared_task(ignore_result=True)
 def delete_successful_tasks():
   queryset = TaskResult.objects.filter(status=states.SUCCESS)
 

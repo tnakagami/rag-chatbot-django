@@ -7,7 +7,7 @@
     <div class="col">
       <nav class="row justify-content-between navbar navbar-expand-md">
         <h1 class="col-auto text-dark">
-          <a href="{% url 'account:index' %}" class="text-decoration-none text-reset">Chatbot using RAG</a>
+          <a href="{% url 'account:index' %}" class="text-decoration-none text-reset">{% trans "Chatbot using RAG" %}</a>
         </h1>
         {% if not request|is_login_page %}
         <div class="col-auto pr-3">

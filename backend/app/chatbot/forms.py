@@ -184,7 +184,7 @@ class AssistantForm(_BaseModelForm):
     }
 
   is_interrupt = forms.TypedChoiceField(
-    choices=((True, gettext_lazy('Execute action before stopping')), (False, gettext_lazy('Execute no actions'))),
+    choices=((True, gettext_lazy('Interrupt before the action node.')), (False, gettext_lazy('Interrupt a function execution immediately.'))),
     widget=forms.Select(),
     required=False,
   )

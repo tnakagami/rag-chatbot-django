@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-06-03 07:17+0900\n"
+"POT-Creation-Date: 2024-06-03 08:52+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,25 +17,26 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+
 #: templates/403.html:5
 msgid "403 Forbidden"
-msgstr ""
+msgstr "Error 403：アクセス禁止"
 
 #: templates/403.html:9
 msgid "You don't have permission to access the requested page."
 msgstr "リクエストされたページへのアクセス権がありません。"
 
 #: templates/404.html:5
-msgid "Error 404 Page Not Found"
-msgstr "404 ページが見つかりません。"
+msgid "404 Page Not Found"
+msgstr "Error 404：ページが見つかりません。"
 
 #: templates/404.html:10
 msgid "Requested URL is not found."
 msgstr "リクエストされたURLは見つかりません。"
 
 #: templates/405.html:5
-msgid "Error 405 Method Not Allowed"
-msgstr "対象のHTTP methodは許可されていません。"
+msgid "405 Method Not Allowed"
+msgstr "Error 405：対象のHTTP methodは許可されていません。"
 
 #: templates/405.html:9
 msgid "Requested HTTP Method is not allowd."
@@ -43,7 +44,7 @@ msgstr "要求されたHTTP methodは許可されていません。"
 
 #: templates/500.html:5
 msgid "500 Internal Server Error"
-msgstr "Error 500 サーバー内部エラー"
+msgstr "Error 500：サーバー内部エラー"
 
 #: templates/500.html:9
 msgid "Internal Server Error: Please contact the administrator."
@@ -151,7 +152,7 @@ msgstr "Chatbot - 検索用文書の作成"
 
 #: templates/chatbot/document_file_form.html:16
 msgid "Please drop the files here or"
-msgstr "ここにファイルをドロップするか"
+msgstr "ここにファイルをドロップしてください。もしくは、以下からファイルを選択してください。"
 
 #: templates/chatbot/document_file_form.html:27
 msgid "Create"

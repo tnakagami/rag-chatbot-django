@@ -27,7 +27,7 @@ celery multi start \
        --pidfile="${PID_DIR}/celeryd-%n.pid" \
        --logfile="${LOG_DIR}/celeryd-%n%I.log"
 celery --app=config --workdir=${WORKDIR} \
-       beat --loglevel=INFO --schedule ${PID_DIR}/celerybeat-schedule \
+       beat --detach --loglevel=INFO --schedule ${PID_DIR}/celerybeat-schedule \
        --pidfile="${PID_DIR}/celery-beatd.pid" \
        --logfile="${LOG_DIR}/celery-beatd.log"
 
@@ -36,9 +36,10 @@ while [ ${is_running} -eq 1 ]; do
 done
 
 # Finalize
-celery multi stop worker \
-       --pidfile="${PID_DIR}/celeryd-%n.pid" \
-       --logfile="${LOG_DIR}/celeryd-%n%I.log"
-celery stop beat \
-       --pidfile="${PID_DIR}/celery-beatd.pid" \
-       --logfile="${LOG_DIR}/celery-beatd.log"
+{
+  ls ${PID_DIR}/celery-beatd.pid
+  ls ${PID_DIR}/celeryd-*.pid
+} | while read pid_file; do
+  pid=$(cat ${pid_file})
+  kill ${pid}
+done

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-06-03 07:17+0900\n"
+"POT-Creation-Date: 2024-06-03 08:52+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,6 +17,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+
 #: chatbot/drf_views.py:51
 msgid "Agent"
 msgstr "Agent"
@@ -103,17 +104,19 @@ msgid "Not active"
 msgstr "無効"
 
 #: chatbot/forms.py:187
-msgid "Execute action before stopping"
-msgstr "停止前にactionを実行する"
+msgid "Interrupt before the action node."
+msgstr "actionノードの前で中断する。"
 
 #: chatbot/forms.py:187
-msgid "Execute no actions"
-msgstr "actionを実行しない"
+msgid "Interrupt a function execution immediately."
+msgstr "すぐに中断する。"
 
 #: chatbot/forms.py:206
 msgid ""
 "Invalid agent, embedding, or tools exist. Please check your selected items."
-msgstr "無効なAgent、Embedding、Toolが含まれます。選択したアイテムを確認してください。"
+msgstr ""
+"無効なAgent、Embedding、Toolが含まれます。選択したアイテムを確認してくださ"
+"い。"
 
 #: chatbot/forms.py:240
 msgid "Invalid assistant exist."
@@ -295,7 +298,9 @@ msgstr "LangGraph workflowにおける中断フラグ"
 msgid ""
 "If True, Interrupt before the specific node (e.g. \"action\" node) when the "
 "workflow is stopped with human intervention."
-msgstr "有効にした場合、人手の介入によりworkflowが停止された場合、特定のノード（例：\"action\"ノード）の前で中断します。"
+msgstr ""
+"有効にした場合、人手の介入によりworkflowが停止された場合、特定のノード（例："
+"\"action\"ノード）の前で中断します。"
 
 #: chatbot/models/rag.py:329
 msgid "Base assistant of document files"
@@ -484,7 +489,9 @@ msgstr "OpenAIのDALL-Eモデルを用いてテキストから画像を生成"
 msgid ""
 "Useful for when you need to generate images from a text description. Input "
 "should be an image description."
-msgstr "テキストから画像を生成する必要がある場合に役立つ。テキストで画像の概要を入力してください。"
+msgstr ""
+"テキストから画像を生成する必要がある場合に役立つ。テキストで画像の概要を入力"
+"してください。"
 
 #: chatbot/models/utils/tools.py:206
 msgid "Searches the web with DuckDuckGo"
@@ -564,19 +571,25 @@ msgstr "{ext}は無効な拡張子です。利用可能な拡張子一覧：{all
 #: chatbot/serializers.py:510
 #, python-brace-format
 msgid "Max file size is {max_size}. Current size: {current_size}"
-msgstr "ファイルサイズの上限は{max_size}です。アップロードされたファイルのサイズ：{current_size}"
+msgstr ""
+"ファイルサイズの上限は{max_size}です。アップロードされたファイルのサイズ："
+"{current_size}"
 
 #: chatbot/serializers.py:594
 msgid ""
 "Invalid primary key of assistant because it's prohibited to set different "
 "primary key of assistant."
-msgstr "無効なAssistantが指定されました。Threadに紐づかないAssistantの指定は禁止されています。"
+msgstr ""
+"無効なAssistantが指定されました。Threadに紐づかないAssistantの指定は禁止され"
+"ています。"
 
 #: chatbot/serializers.py:609
 msgid ""
 "Invalid docfiles exist. Please check if the owner of these docfiles are "
 "yours."
-msgstr "無効な検索用文書が存在します。あなたが所有者である検索用文書かどうか確認してください。"
+msgstr ""
+"無効な検索用文書が存在します。あなたが所有者である検索用文書かどうか確認して"
+"ください。"
 
 #: chatbot/serializers.py:654
 msgid "Get chat history in this thread"
@@ -594,7 +607,9 @@ msgstr "Primary keyが存在しません。Primary keyを設定してくださ�
 msgid ""
 "Invalid primary key exists. Please set the primary key that you are the "
 "thread's owner."
-msgstr "無効なPrimary keyが存在します。あなたがThreadの所有者であるPrimary keyを設定してください。"
+msgstr ""
+"無効なPrimary keyが存在します。あなたがThreadの所有者であるPrimary keyを設定"
+"してください。"
 
 #: chatbot/serializers.py:734
 msgid "No request_type exists. Please set request_type."
@@ -607,7 +622,8 @@ msgstr "無効なrequest_typeが存在します。有効なrequest_type：{candi
 
 #: chatbot/serializers.py:746
 msgid "Failed to json serialization. Please check your message."
-msgstr "JSONのシリアライズに失敗しました。送信したメッセージを確認してください。"
+msgstr ""
+"JSONのシリアライズに失敗しました。送信したメッセージを確認してください。"
 
 #: chatbot/views.py:62 chatbot/views.py:114 chatbot/views.py:124
 #: chatbot/views.py:147 chatbot/views.py:237 chatbot/views.py:247

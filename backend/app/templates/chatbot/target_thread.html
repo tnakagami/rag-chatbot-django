@@ -14,7 +14,10 @@
 {# Back to previous page #}
 <div class="row px-2">
   <div class="col">
-    <div class="row justify-content-end my-2">
+    <div class="row my-2">
+      <div class="col-auto me-auto align-self-center">
+        {{ thread }}
+      </div>
       <div class="col-auto">
         <a href="{% url 'chatbot:detail_assistant' pk=thread.assistant.pk %}" class="btn btn-secondary w-100 custom-boxshadow-effect">
           {% trans "Back" %}
