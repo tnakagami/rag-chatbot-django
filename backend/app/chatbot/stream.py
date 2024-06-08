@@ -1,8 +1,9 @@
-import json
 import orjson
 import functools
 import logging
 from typing import Any, Dict, Optional, Sequence, Union
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from langchain.pydantic_v1 import ValidationError
 from langchain_core.messages import AnyMessage, BaseMessage, message_chunk_to_message
 
@@ -10,6 +11,22 @@ g_logger = logging.getLogger(__name__)
 
 class InputMessageValidationError(Exception):
   pass
+
+@dataclass
+class ResponseMessage:
+  id: str
+  content: str
+  type: str
+
+@dataclass
+class Error:
+  error: str
+  status_code: int = 500
+
+@dataclass
+class EventResponse:
+  event: str
+  data: Union[list[ResponseMessage], str, Error, Dict[str, Any]]
 
 class ChatbotController:
   def __init__(self, app, pk):
@@ -25,18 +42,10 @@ class ChatbotController:
   def _is_stream(self) -> bool:
     return self.app._is_streaming
 
-  def _converter(self, response: Any) -> str:
-    serialized = json.dumps(response)
+  def _converter(self, response: EventResponse) -> bytes:
+    return self.dumps(response) + b'\n\n'
 
-    return f'{serialized}\n\n'.encode('utf-8')
-
-  def _formatter(self, event_type: str, data: Any) -> Dict[str, Any]:
-    return {'event': event_type, 'data': data}
-
-  def _get_error(self, err_msg: str) -> Any:
-    return orjson.dumps({'status_code': 500, 'error': err_msg}).decode()
-
-  async def _astream_state(self, inputs: Union[Sequence[AnyMessage], Dict[str, Any]]) -> Any:
+  async def _astream_state(self, inputs: Union[Sequence[AnyMessage], Dict[str, Any]]) -> AsyncIterator[Union[BaseMessage, list[BaseMessage], str]]:
     root_run_id: Optional[str] = None
     messages: dict[str, BaseMessage] = {}
     config = self._get_config()
@@ -71,14 +80,28 @@ class ChatbotController:
 
       elif response['event'] == 'on_chat_stream':
         msg: BaseMessage = response['data']['chunk']
-        msg_id: Optional[str] = msg['id'] if isinstance(msg, dict) else msg.id
+        is_dict = isinstance(msg, dict)
+        msg_id: Optional[str] = msg['id'] if is_dict else msg.id
 
         if msg_id not in messages:
           messages[msg_id] = msg
+          result = [msg]
         else:
-          messages[msg_id] += msg
+          if isinstance(messages[msg_id], dict):
+            new_content = msg['content'] if is_dict else str(msg.content)
+            content = messages[msg_id]['content'] + new_content
+            messages.update({msg_id: {'content': content, 'id': msg_id}})
+            result = [messages[msg_id]]
+          else:
+            new_content = msg['content'] if is_dict else msg
+            template = messages[msg_id] + new_content
+            messages[msg_id] = template.format_messages()
+            # Update id
+            for target in messages[msg_id]:
+              target.id = msg_id
+            result = messages[msg_id]
 
-        yield [messages[msg_id]]
+        yield result
 
   def _validate(self, message: Union[Sequence[AnyMessage], Dict[str, Any]]) -> None:
     try:
@@ -95,73 +118,82 @@ class ChatbotController:
       }
     }
 
-  def _generate_response(self, collected_messages: list[AnyMessage]):
-    ids: list[str] = []
-    data: list[str] = []
+  def _generate_response(self, collected_messages: list[Union[AnyMessage, Dict[str, Any]]]) -> AsyncIterator[ResponseMessage]:
+    hashed: Dict[str, bool] = {}
     # Extract content from AnyMessage
     message_types: Dict[str, str] = {
+      # For BaseMessage
       'HumanMessage': 'HUMAN',
       'AIMessage': 'AI',
       'FunctionMessage': 'FUNCTION',
       'ToolMessage': 'TOOL',
+      # For dict
+      'human': 'HUMAN',
+      'ai': 'AI',
+      'function': 'FUNCTION',
+      'tool': 'TOOL',
     }
     for msg in collected_messages:
-      if isinstance(msg, BaseMessage):
-        msg_id: str = msg.id
-        content: str = str(msg.content)
-        datatype: Optional[str] = message_types.get(msg.__class__.__name__, None)
+      if isinstance(msg, (BaseMessage, dict)):
+        is_dict = isinstance(msg, dict)
+        type_name = msg.get('type', '') if is_dict else msg.__class__.__name__
+        msg_id: str = msg['id'] if is_dict else msg.id
+        content: str = msg['content'] if is_dict else str(msg.content)
+        data_type: Optional[str] = message_types.get(type_name, 'ANONYMOUS')
 
-        if msg_id not in ids and content not in data:
-          extracted: Dict[str, Any] = {'content': content, 'type': datatype, 'id': msg_id}
+        if hashed.get(msg_id, True):
+          extracted = ResponseMessage(id=msg_id, content=content, type=data_type)
           yield extracted
-          data.append(content)
-          ids.append(msg_id)
+          hashed[msg_id] = False
 
-  async def aget_thread_state(self) -> Dict[str, Any]:
+  async def aget_thread_state(self) -> AsyncIterator[ResponseMessage]:
     config: Dict[str, Any] = self._get_config()
     # state: the instance of langgraph.pregel.types.StateSnapshot class
     snapshot = await self.app.aget_state(config)
     # Create response
     for data in self._generate_response(snapshot.values):
-      yield self._formatter('history', [data])
+      yield EventResponse(event='history', data=[data])
 
-  async def ainvoke(self, message: Union[Sequence[AnyMessage], Dict[str, Any]]) -> Dict[str, Any]:
+  async def ainvoke(self, message: Union[Sequence[AnyMessage], Dict[str, Any]]) -> AsyncIterator[ResponseMessage]:
     try:
       self._validate(message)
       config: Dict[str, Any] = self._get_config()
       outputs: Any = await self.app.ainvoke(message, config)
       # Create response
       for data in self._generate_response(outputs):
-        yield self._formatter('data', [data])
+        yield EventResponse(event='data', data=[data])
     except InputMessageValidationError as ex:
-      yield self._formatter('error', self._get_error(str(ex)))
+      yield EventResponse(event='error', data=Error(error=str(ex)))
     except Exception as ex:
       err_msg: str = str(ex)
       g_logger.error(f'ChatController[ainvoke]{err_msg}')
-      yield self._formatter('error', self._get_error(err_msg))
+      yield EventResponse(event='error', data=Error(error=err_msg))
 
-  async def astream(self, message: Union[Sequence[AnyMessage], Dict[str, Any]]):
+  async def astream(self, message: Union[Sequence[AnyMessage], Dict[str, Any]]) -> AsyncIterator[ResponseMessage]:
     try:
       self._validate(message)
 
       async for chunk in self._astream_state(message):
         if isinstance(chunk, str):
           # For example, the matched chunk is `run_id`.
-          data: Any = orjson.dumps({'run_id': chunk}).decode()
-          yield self._formatter('metadata', data)
+          yield EventResponse(event='metadata', data={'run_id': chunk})
         else:
-          data: Any = self.dumps([message_chunk_to_message(target) for target in chunk]).decode()
-          yield self._formatter('data', data)
+          outputs: Union[list[BaseMessage], Dict[str, Any]] = orjson.loads(
+            self.dumps([message_chunk_to_message(target) for target in chunk])
+          )
+          # Create response
+          for data in self._generate_response(outputs):
+            yield EventResponse(event='stream', data=data)
     except InputMessageValidationError as ex:
-      yield self._formatter('error', self._get_error(str(ex)))
+      yield EventResponse(event='error', data=Error(error=str(ex)))
     except Exception as ex:
       err_msg: str = str(ex)
       g_logger.error(f'ChatController[astream]{err_msg}')
-      yield self._formatter('error', self._get_error(err_msg))
+      yield EventResponse(event='error', data=Error(error=err_msg))
 
-    yield self._formatter('end', {})
+    yield EventResponse(event='end', data={})
 
-  async def event_stream(self, contents):
+  async def event_stream(self, contents) -> AsyncIterator[bytes]:
     if 'chat_history' == contents['type']:
       async for response in self.aget_thread_state():
         yield self._converter(response)

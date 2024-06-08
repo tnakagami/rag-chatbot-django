@@ -676,7 +676,7 @@ class LangChainChatbotSerializer(AsyncSerializer):
         self._errors = {}
 
       if self._errors and raise_exception:
-        raise serializers.ValidationError(self.errors)
+        raise serializers.ValidationError(self._errors)
 
     return not bool(self._errors)
 
@@ -692,6 +692,8 @@ class LangChainChatbotSerializer(AsyncSerializer):
     return values
 
   async def ato_internal_value(self, data):
+    if isinstance(data, str):
+      data = json.loads(data)
     interals = {}
     thread_pk = data.get('thread_pk', None)
     request_type = data.get('request_type', None)
@@ -744,6 +746,8 @@ class LangChainChatbotSerializer(AsyncSerializer):
       message = json.loads(message)
     except Exception:
       errors['message'] = gettext_lazy(f'Failed to json serialization. Please check your message.')
+    if not message and request_type == 'chat_message':
+      errors['message'] = gettext_lazy(f'The received message is empty.')
 
     if len(errors) > 0:
       raise serializers.ValidationError(errors)

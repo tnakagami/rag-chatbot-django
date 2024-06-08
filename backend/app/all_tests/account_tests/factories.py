@@ -17,7 +17,7 @@ class UserFactory(factory.django.DjangoModelFactory):
   class Meta:
     model = models.User
 
-  username = factory.LazyAttribute(lambda instance: _clip(faker.name(), 128))
+  username = factory.Sequence(lambda idx: f'user{idx}')
   email = factory.LazyAttribute(lambda instance: _clip(f'{instance.username}@example.com', 128).lower())
   screen_name = factory.LazyAttribute(lambda instance: _clip(faker.name(), 128))
   date_joined = factory.LazyFunction(timezone.now)
