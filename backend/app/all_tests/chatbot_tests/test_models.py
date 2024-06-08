@@ -521,8 +521,8 @@ def test_check_baseconfig(get_common_data):
 
 @pytest.mark.chatbot
 @pytest.mark.model
-@pytest.mark.django_db
 @pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
 async def test_check_aget_or_none_method(get_common_data):
   name, config = get_common_data
   instance = await BaseConfig.objects.acreate(name=name, config=config)
@@ -686,11 +686,11 @@ def test_check_owner(handler):
 @pytest.mark.model
 @pytest.mark.django_db
 @pytest.mark.parametrize('factory_class,kwargs,expected', [
-  (factories.AgentFactory,     {'name':  'a'*9, 'agent_type': AgentType.ANTHROPIC}, '{} ({})'.format('a'*9, AgentType.ANTHROPIC.label)),
+  (factories.AgentFactory,     {'name':  'a'*9, 'agent_type': AgentType.ANTHROPIC}, '{} ({})'.format('a'*9, 'Anthropic (Claude 2)')),
   (factories.AgentFactory,     {'name': 'a'*10, 'agent_type': AgentType.ANTHROPIC}, '{} (Anthropic (Claude 2)...'.format('a'*10)),
-  (factories.EmbeddingFactory, {'name': 'b'*15, 'emb_type':   AgentType.BEDROCK},   '{} ({})'.format('b'*15, AgentType.BEDROCK.label)),
+  (factories.EmbeddingFactory, {'name': 'b'*15, 'emb_type':   AgentType.BEDROCK},   '{} ({})'.format('b'*15, 'Amazon Bedrock')),
   (factories.EmbeddingFactory, {'name': 'b'*16, 'emb_type':   AgentType.BEDROCK},   '{} (Amazon Bedrock...'.format('b'*16)),
-  (factories.ToolFactory,      {'name': 'c'*20, 'tool_type':  ToolType.RETRIEVER},  '{} ({})'.format('c'*20, ToolType.RETRIEVER.label)),
+  (factories.ToolFactory,      {'name': 'c'*20, 'tool_type':  ToolType.RETRIEVER},  '{} ({})'.format('c'*20, 'Retriever')),
   (factories.ToolFactory,      {'name': 'c'*21, 'tool_type':  ToolType.RETRIEVER},  '{} (Retriever...'.format('c'*21)),
 ], ids=[
   'agent-name-length-is-less-than-or-equal-32',

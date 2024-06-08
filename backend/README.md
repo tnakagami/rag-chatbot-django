@@ -6,7 +6,9 @@ To do this, from the command line, run the following command, where "app-name" i
 
 ```bash
 # In the host environment
-docker-compose run --rm -it --entrypoint /bin/bash backend
+docker-compose up -d
+docker exec -it rag-backend bash
+
 # In the container environment
 python manage.py makemigrations app-name
 ```
@@ -47,17 +49,18 @@ Run the following commands to reflect translation messages.
 ```bash
 # In the host environment
 docker-compose up -d
-docker exec -it backend
+docker exec -it rag-backend bash
 
 # In the docker environment
 django-admin makemessages -l ja
 exit # or press Ctrl + D
+
 #
 # Edit .po files using your favorite editor (e.g. vim)
 #
 
 # In the host environment
-docker exec -it backend
+docker exec -it rag-backend bash
 
 # In the docker environment
 django-admin compilemessages
@@ -86,7 +89,10 @@ Enter the following command on your terminal, then execute `pytest` command.
 
 ```bash
 # In the host environment
-docker-compose run --rm -it --entrypoint /bin/bash backend
+docker-compose up -d
+docker exec -it rag-backend bash
+
 # In the docker environment
 pytest
+exit # or press Ctrl + D
 ```

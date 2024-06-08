@@ -77,6 +77,62 @@
 {% block bodyjs %}
 <script>
 (function () {
+  const generateUUID = (version=4, reserved=1) => {
+    version = Math.abs(version).toString().substr(0, 1);
+    reserved = Math.abs(reserved).toString().substr(0, 1);
+
+    const rotateString = (text, num=1) => {
+      const arr = text.split('');
+
+      for (let idx = 0; idx < num; idx++) {
+        const last = arr.pop();
+        arr.unshift(last);
+      }
+
+      return arr.join('');
+    };
+    // Create pseudo uuid
+    const buf = Array.from(crypto.getRandomValues(new Uint32Array(6))).map((val, idx) => {
+      const paddedText = val.toString(16).padStart(8, '0');
+      const shiftedText = rotateString(paddedText, 2);
+      let ret = shiftedText;
+      // format: xxxxxxxx-xxxx-Vxxx-Rxxx-xxxxxxxxxxxx
+      //            A       B    C    D      E
+      //   idx:     0       1    2    3     4,5
+      switch (idx) {
+        // In the case of pattern A
+        case 0:
+          ret = shiftedText;
+          break;
+        // In the case of pattern B
+        case 1:
+          ret = shiftedText.substr(1, 4);
+          break;
+        // In the case of pattern C
+        case 2:
+          ret = `${version}${shiftedText.substr(2, 3)}`;
+          break;
+        // In the case of pattern D
+        case 3:
+          ret = `${reserved}${shiftedText.substr(3, 3)}`;
+          break;
+        // In the case of pattern E
+        case 4:
+        case 5:
+          ret = shiftedText.substr(1, 6);
+          break;
+        default:
+          break;
+      }
+
+      return ret;
+    });
+    const lastText = buf.pop();
+    const joinedText = buf.join('-') + lastText;
+    const pseudoUUID = joinedText.toLowerCase();
+
+    return pseudoUUID;
+  };
   const getCookie = (name) => {
     let cookieValue = null;
 
@@ -150,6 +206,7 @@
 
   const init = () => {
     let _g_runID = null;
+    const _g_msgIdStore = {};
     const template = document.querySelector('#chat-message-template');
     const chats = document.querySelector('#chats');
     const inputMessage = document.querySelector('#input-message');
@@ -169,20 +226,49 @@
     };
     // Define callback function
     const callback = (chunk) => {
-      const addChatMessage = (content, type) => {
-        const pattern = {
+      const setChatMessage = (content, msgType, msgID, node) => {
+        const pattern = Object.freeze({
           HUMAN: 'You',
           AI: 'AI',
           FUNCTION: 'Func',
           TOOL: 'Tool',
-        };
-        const clone = template.content.cloneNode(true);
-        const speakerType = clone.querySelector('.speaker-type');
-        const chatMessage = clone.querySelector('.chat-message');
-        const targetType = pattern[type];
+          ANONYMOUS: 'Who?',
+        });
+        // Set message data
+        const speakerType = node.querySelector('.speaker-type');
+        const chatMessage = node.querySelector('.chat-message');
+        const targetType = pattern[msgType];
         speakerType.textContent = (targetType ? targetType : '');
         chatMessage.textContent = content;
-        chats.appendChild(clone);
+        chatMessage.id = msgID;
+
+        return node;
+      };
+      const addChatMessage = (msg, isStreaming=false) => {
+        // Get message data
+        const content = msg.content;
+        const msgType = msg.type;
+        const msgID = msg.id;
+        // Create clone node
+        if (isStreaming) {
+          const target = document.querySelector(`#${msgID}`);
+          // In the case of receiving additional chunk data
+          if (target) {
+            const newContent = target.textContent + content;
+            setChatMessage(newContent, msgType, msgID, target.parentNode);
+          }
+          // In the case of receiving new message or receiving metadata
+          else {
+            const clone = template.content.cloneNode(true);
+            const node = setChatMessage('', '', msgID, clone);
+            chats.appendChild(node);
+          }
+        }
+        else {
+          const clone = template.content.cloneNode(true);
+          const node = setChatMessage(content, msgType, msgID, clone);
+          chats.appendChild(node);
+        }
       };
       const convert2array = (outputs) => ((outputs) ? (Array.isArray(outputs) ? outputs : outputs.message) : []);
       // ================
@@ -195,11 +281,28 @@
         case 'metadata':
           {
             const { run_id } = JSON.parse(data);
+            const msg = {
+              content: '',
+              msgType: 'none',
+              msgID: run_id,
+            };
+            addChatMessage(msg, true);
             _g_runID = run_id;
+          }
+          break;
+        // In the case of receiving stream data
+        case 'stream':
+          {
+            // Add received message
+            addChatMessage(data, true);
           }
           break;
         // In the case of end statement
         case 'end':
+          {
+            _g_msgIdStore[_g_runID] = true;
+            _g_runID = null;
+          }
           break;
         // In the case of chat history or response messages
         case 'history':
@@ -208,9 +311,11 @@
             const messages = convert2array(data);
             // Add received messages
             for (const msg of messages) {
-              const content = msg.content;
-              const type = msg.type;
-              addChatMessage(content, type);
+              // In the case of not existing message
+              if (!_g_msgIdStore[msg.id]) {
+                addChatMessage(msg, false);
+                _g_msgIdStore[msg.id] = true;
+              }
             }
           }
           break;
@@ -220,6 +325,7 @@
             const { error } = JSON.parse(data);
             const element = document.querySelector('#error-message');
             element.textContent = error;
+            _g_runID = null;
             errMsgModal.show();
           }
           break;
@@ -254,6 +360,7 @@
       // Define sent message
       const input = (() => {
         const role = 'human';
+        const msgID = `${role}-${generateUUID()}`;
 
         return [
           {
@@ -261,8 +368,8 @@
             additional_kwargs: {},
             type: role,
             example: false,
-            id: (_g_runID) ? _g_runID : `${role}-${Math.random()}`,
-          }
+            id: msgID,
+          },
         ];
       })();
       // Update button status

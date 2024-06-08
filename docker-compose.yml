@@ -49,6 +49,7 @@ services:
     container_name: rag-celery
     environment:
       - TZ=Asia/Tokyo
+      - NUM_CPUS=1
     env_file:
       - ./env_files/backend/docker.env
       - ./env_files/backend/.env

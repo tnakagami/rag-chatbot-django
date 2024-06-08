@@ -11,25 +11,26 @@ handler(){
 trap handler 1 2 3 15
 
 # Create pid directory and log directory
-readonly WORKDIR=/opt/app
-readonly CELERY_ROOT_DIR=/opt/home/celery
-readonly PID_DIR=${CELERY_ROOT_DIR}/run
-readonly LOG_DIR=${CELERY_ROOT_DIR}/log
-mkdir -p ${PID_DIR}
-mkdir -p ${LOG_DIR}
+readonly _workdir=/opt/app
+readonly _celery_root_dir=/opt/home/celery
+readonly _pid_dir=${_celery_root_dir}/run
+readonly _log_dir=${_celery_root_dir}/log
+mkdir -p ${_pid_dir}
+mkdir -p ${_log_dir}
 
 # =============
 # = Main loop =
 # =============
 celery multi start \
-       --app=config --workdir=${WORKDIR} \
-       worker --loglevel=INFO \
-       --pidfile="${PID_DIR}/celeryd-%n.pid" \
-       --logfile="${LOG_DIR}/celeryd-%n%I.log"
-celery --app=config --workdir=${WORKDIR} \
-       beat --detach --loglevel=INFO --schedule ${PID_DIR}/celerybeat-schedule \
-       --pidfile="${PID_DIR}/celery-beatd.pid" \
-       --logfile="${LOG_DIR}/celery-beatd.log"
+       --app=config --workdir=${_workdir} \
+       worker --concurrency=${NUM_CPUS} --loglevel=INFO \
+       --prefetch-multiplier=${CELERY_WORKER_PREFETCH_MULTIPLIER} \
+       --pidfile="${_pid_dir}/celeryd-%n.pid" \
+       --logfile="${_log_dir}/celeryd-%n%I.log"
+celery --app=config --workdir=${_workdir} \
+       beat --detach --loglevel=INFO --schedule ${_pid_dir}/celerybeat-schedule \
+       --pidfile="${_pid_dir}/celery-beatd.pid" \
+       --logfile="${_log_dir}/celery-beatd.log"
 
 while [ ${is_running} -eq 1 ]; do
   sleep 1
@@ -37,8 +38,8 @@ done
 
 # Finalize
 {
-  ls ${PID_DIR}/celery-beatd.pid
-  ls ${PID_DIR}/celeryd-*.pid
+  ls ${_pid_dir}/celery-beatd.pid
+  ls ${_pid_dir}/celeryd-*.pid
 } | while read pid_file; do
   pid=$(cat ${pid_file})
   kill ${pid}
