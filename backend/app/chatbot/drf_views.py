@@ -247,7 +247,10 @@ class ThreadViewSet(ModelViewSet):
 # =====================
 class AsyncJWTAuthentication(BaseAuthentication):
   def __init__(self, *args, **kwargs):
+    from django.conf import settings
+    header_types = settings.SIMPLE_JWT.get('AUTH_HEADER_TYPES', ('JWT',))
     self.wrapper = JWTAuthentication(*args, **kwargs)
+    self.keyword = header_types[0]
 
   async def authenticate(self, request):
     return await sync_to_async(self.wrapper.authenticate)(request)
