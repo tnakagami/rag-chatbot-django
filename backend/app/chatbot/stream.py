@@ -42,7 +42,7 @@ class ChatbotController:
   def _is_stream(self) -> bool:
     return self.app._is_streaming
 
-  def _converter(self, response: EventResponse) -> bytes:
+  def _converter(self, response: list[EventResponse]) -> bytes:
     return self.dumps(response) + b'\n\n'
 
   async def _astream_state(self, inputs: Union[Sequence[AnyMessage], Dict[str, Any]]) -> AsyncIterator[Union[BaseMessage, list[BaseMessage], str]]:
@@ -133,6 +133,8 @@ class ChatbotController:
       'function': 'FUNCTION',
       'tool': 'TOOL',
     }
+    outputs: list[ResponseMessage] = []
+    # Convert data from input form to output form
     for msg in collected_messages:
       if isinstance(msg, (BaseMessage, dict)):
         is_dict = isinstance(msg, dict)
@@ -143,16 +145,17 @@ class ChatbotController:
 
         if hashed.get(msg_id, True):
           extracted = ResponseMessage(id=msg_id, content=content, type=data_type)
-          yield extracted
+          outputs += [extracted]
           hashed[msg_id] = False
+
+    return outputs
 
   async def aget_thread_state(self) -> AsyncIterator[ResponseMessage]:
     config: Dict[str, Any] = self._get_config()
     # state: the instance of langgraph.pregel.types.StateSnapshot class
     snapshot = await self.app.aget_state(config)
-    # Create response
-    for data in self._generate_response(snapshot.values):
-      yield EventResponse(event='history', data=[data])
+    data = self._generate_response(snapshot.values)
+    yield EventResponse(event='history', data=data)
 
   async def ainvoke(self, message: Union[Sequence[AnyMessage], Dict[str, Any]]) -> AsyncIterator[ResponseMessage]:
     try:
@@ -160,8 +163,8 @@ class ChatbotController:
       config: Dict[str, Any] = self._get_config()
       outputs: Any = await self.app.ainvoke(message, config)
       # Create response
-      for data in self._generate_response(outputs):
-        yield EventResponse(event='data', data=[data])
+      data = self._generate_response(outputs)
+      yield EventResponse(event='data', data=data)
     except InputMessageValidationError as ex:
       yield EventResponse(event='error', data=Error(error=str(ex)))
     except Exception as ex:
@@ -182,8 +185,8 @@ class ChatbotController:
             self.dumps([message_chunk_to_message(target) for target in chunk])
           )
           # Create response
-          for data in self._generate_response(outputs):
-            yield EventResponse(event='stream', data=data)
+          data = self._generate_response(outputs)
+          yield EventResponse(event='stream', data=data)
     except InputMessageValidationError as ex:
       yield EventResponse(event='error', data=Error(error=str(ex)))
     except Exception as ex:

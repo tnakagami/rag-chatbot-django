@@ -246,9 +246,9 @@
       };
       const addChatMessage = (msg, isStreaming=false) => {
         // Get message data
-        const content = msg.content;
-        const msgType = msg.type;
-        const msgID = msg.id;
+        const content = msg?.content;
+        const msgType = msg?.type;
+        const msgID = msg?.id;
         // Create clone node
         if (isStreaming) {
           const target = document.querySelector(`#${msgID}`);
@@ -270,7 +270,7 @@
           chats.appendChild(node);
         }
       };
-      const convert2array = (outputs) => ((outputs) ? (Array.isArray(outputs) ? outputs : outputs.message) : []);
+      const convert2array = (outputs) => ((outputs) ? (Array.isArray(outputs) ? outputs : [outputs]) : []);
       // ================
       // = main process =
       // ================
@@ -293,14 +293,23 @@
         // In the case of receiving stream data
         case 'stream':
           {
-            // Add received message
-            addChatMessage(data, true);
+            const messages = convert2array(data);
+            // Add received messages
+            for (const msg of messages) {
+              // In the case of not existing message
+              if (msg?.id && !_g_msgIdStore[msg.id]) {
+                addChatMessage(msg, true);
+                _g_msgIdStore[msg.id] = true;
+              }
+            }
           }
           break;
         // In the case of end statement
         case 'end':
           {
-            _g_msgIdStore[_g_runID] = true;
+            if (_g_runID) {
+              _g_msgIdStore[_g_runID] = true;
+            }
             _g_runID = null;
           }
           break;
@@ -312,7 +321,7 @@
             // Add received messages
             for (const msg of messages) {
               // In the case of not existing message
-              if (!_g_msgIdStore[msg.id]) {
+              if (msg?.id && !_g_msgIdStore[msg.id]) {
                 addChatMessage(msg, false);
                 _g_msgIdStore[msg.id] = true;
               }
@@ -360,7 +369,7 @@
       // Define sent message
       const input = (() => {
         const role = 'human';
-        const msgID = `${role}-${generateUUID()}`;
+        const uuid = generateUUID();
 
         return [
           {
@@ -368,7 +377,7 @@
             additional_kwargs: {},
             type: role,
             example: false,
-            id: msgID,
+            id: `${role}-${uuid}`,
           },
         ];
       })();

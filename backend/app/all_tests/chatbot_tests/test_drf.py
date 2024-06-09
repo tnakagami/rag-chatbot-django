@@ -1214,7 +1214,7 @@ def get_callback_of_event_stream_view():
 @pytest.mark.drf
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-async def test_check_event_stream_view(mocker, get_callback_of_event_stream_view):
+async def test_drf_event_stream_view(mocker, get_callback_of_event_stream_view):
   class DummyController:
     def __init__(self, *args, **kwargs):
       pass
@@ -1235,7 +1235,7 @@ async def test_check_event_stream_view(mocker, get_callback_of_event_stream_view
     'message': json.dumps({'message': 'valid'}),
   }
   callback = get_callback_of_event_stream_view
-  refresh = RefreshToken.for_user(user)
+  refresh = await sync_to_async(RefreshToken.for_user)(user)
   response = await callback(HTTP_AUTHORIZATION=f'JWT {refresh.access_token}', data=json.dumps(form_data), format='json')
 
   assert response.status_code == status.HTTP_200_OK
@@ -1243,7 +1243,7 @@ async def test_check_event_stream_view(mocker, get_callback_of_event_stream_view
 @pytest.mark.chatbot
 @pytest.mark.drf
 @pytest.mark.asyncio
-async def test_check_not_authenticated_of_event_stream_view(get_callback_of_event_stream_view):
+async def test_drf_not_authenticated_of_event_stream_view(get_callback_of_event_stream_view):
   form_data = {
     'thread_pk': 1,
     'request_type': 'chat_message',
@@ -1258,7 +1258,7 @@ async def test_check_not_authenticated_of_event_stream_view(get_callback_of_even
 @pytest.mark.drf
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-async def test_check_invalid_instance_of_event_stream_view(get_callback_of_event_stream_view):
+async def test_drf_invalid_instance_of_event_stream_view(get_callback_of_event_stream_view):
   user, other = await sync_to_async(factories.UserFactory.create_batch)(2)
   assistant = await sync_to_async(factories.AssistantFactory)(user=other)
   thread = await sync_to_async(factories.ThreadFactory)(assistant=assistant)
@@ -1268,7 +1268,7 @@ async def test_check_invalid_instance_of_event_stream_view(get_callback_of_event
     'message': json.dumps({'message': 'valid'}),
   }
   callback = get_callback_of_event_stream_view
-  refresh = RefreshToken.for_user(user)
+  refresh = await sync_to_async(RefreshToken.for_user)(user)
   response = await callback(HTTP_AUTHORIZATION=f'JWT {refresh.access_token}', data=json.dumps(form_data), format='json')
 
   assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -1277,7 +1277,7 @@ async def test_check_invalid_instance_of_event_stream_view(get_callback_of_event
 @pytest.mark.drf
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-async def test_check_invalid_owner_of_async_is_owner():
+async def test_drf_invalid_owner_of_async_is_owner():
   class DummyRequest:
     def __init__(self, user):
       self.user = user
@@ -1320,7 +1320,7 @@ async def test_check_invalid_owner_of_async_is_owner():
   '1.0TiB',
   '1025.0TiB',
 ])
-def test_check_convert_human_readable_filesize_of_documentfile_serializer(filesize, expected):
+def test_drf_convert_human_readable_filesize_of_documentfile_serializer(filesize, expected):
   user = factories.UserFactory()
   assistant = factories.AssistantFactory(user=user)
   data = {'assistant_pk': assistant.pk}
@@ -1338,7 +1338,7 @@ def test_check_convert_human_readable_filesize_of_documentfile_serializer(filesi
   ('chat_message', {'message': 'test message'}),
   ('chat_history', {'message': 'test message'}),
 ], ids=['chat-history', 'chat-message', 'chat-history-with-message'])
-async def test_check_chatbot_serializer(mocker, req_type, message):
+async def test_drf_chatbot_serializer(mocker, req_type, message):
   mocker.patch('chatbot.models.rag.Thread.get_executor', return_value=None)
 
   user = await sync_to_async(factories.UserFactory)(username=f'chatbot-serializer-{req_type}')
@@ -1382,7 +1382,7 @@ async def test_check_chatbot_serializer(mocker, req_type, message):
   'no-data-and-run-error',
   'exist-data-and-raise-error',
 ])
-async def test_check_raise_exception_of_ais_valid_method_of_chatbot_serializer(mocker, init_data, is_run_error, raise_exception, excetion_type):
+async def test_drf_raise_exception_of_ais_valid_method_of_chatbot_serializer(mocker, init_data, is_run_error, raise_exception, excetion_type):
   user = await sync_to_async(factories.UserFactory)()
   serializer = chatbot_serializers.LangChainChatbotSerializer(user=user, **init_data)
   patch_function_name = 'chatbot.serializers.LangChainChatbotSerializer.arun_validation'
@@ -1399,7 +1399,7 @@ async def test_check_raise_exception_of_ais_valid_method_of_chatbot_serializer(m
 @pytest.mark.drf
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-async def test_check_arun_validation_method_of_chatbot_serializer(mocker):
+async def test_drf_arun_validation_method_of_chatbot_serializer(mocker):
   err = 'Raise exception'
   user = await sync_to_async(factories.UserFactory)()
   serializer = chatbot_serializers.LangChainChatbotSerializer(user=user)
@@ -1425,7 +1425,7 @@ async def test_check_arun_validation_method_of_chatbot_serializer(mocker):
   'is-none-pattern',
   'is-invalid-thead_pk-pattern',
 ])
-async def test_check_ato_internal_value_method_of_chatbot_serializer(inputs, expected):
+async def test_drf_ato_internal_value_method_of_chatbot_serializer(inputs, expected):
   user = await sync_to_async(factories.UserFactory)()
   assistant = await sync_to_async(factories.AssistantFactory)(user=user)
   thread = await sync_to_async(factories.ThreadFactory)(assistant=assistant)
@@ -1470,7 +1470,7 @@ async def test_check_ato_internal_value_method_of_chatbot_serializer(inputs, exp
   'invalid-message',
   'message-is-empty',
 ])
-async def test_check_invalid_pattern_for_avalidate_method_of_chatbot_serializer(inputs, err_msg):
+async def test_drf_invalid_pattern_for_avalidate_method_of_chatbot_serializer(inputs, err_msg):
   user, other = await sync_to_async(factories.UserFactory.create_batch)(2)
   assistant = await sync_to_async(factories.AssistantFactory)(user=user)
   thread = await sync_to_async(factories.ThreadFactory)(assistant=assistant)

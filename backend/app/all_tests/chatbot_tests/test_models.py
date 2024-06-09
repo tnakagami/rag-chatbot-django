@@ -879,11 +879,11 @@ def test_check_docfile():
 
 @pytest.mark.chatbot
 @pytest.mark.model
-def test_check_valid_extensions():
+@pytest.mark.parametrize('expected', ['.pdf', '.txt', '.html', '.docx'], ids=lambda val: f'{val[1:]}')
+def test_check_valid_extensions(expected):
   valid_extensions = DocumentFile.get_valid_extensions()
-  expected = ['.pdf', '.txt', '.html', '.docx']
 
-  assert all([target in valid_extensions for target in expected])
+  assert expected in valid_extensions
 
 @pytest.mark.chatbot
 @pytest.mark.model
