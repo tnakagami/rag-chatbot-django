@@ -7,4 +7,5 @@ class ChatbotConfig(AppConfig):
     name = 'chatbot'
 
     def ready(self):
+        import chatbot.schema
         register_lifespan_manager(context_manager=httpx_lifespan_manager)

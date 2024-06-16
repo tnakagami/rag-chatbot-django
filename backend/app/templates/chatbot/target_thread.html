@@ -75,11 +75,13 @@
 {% endblock %}
 
 {% block bodyjs %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/13.0.0/marked.min.js"
+        integrity="sha512-NlNyxz9EmQt8NOeczUXqghpfmRIHlCfE5qRKftWYA44tf8sveWGZhSHxVtGtyHlmqdt89f66F26aWi+kTDz8RQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 (function () {
-  const generateUUID = (version=4, reserved=1) => {
-    version = Math.abs(version).toString().substr(0, 1);
-    reserved = Math.abs(reserved).toString().substr(0, 1);
+  const generateUUID = (version=4) => {
+    version = (Math.abs(version) || 4).toString().substr(0, 1);
 
     const rotateString = (text, num=1) => {
       const arr = text.split('');
@@ -114,7 +116,11 @@
           break;
         // In the case of pattern D
         case 3:
-          ret = `${reserved}${shiftedText.substr(3, 3)}`;
+          {
+            const firstValue = parseInt(shiftedText.substr(2, 1)) & 0xff;
+            const reserved = (firstValue | 0x80).toString();
+            ret = `${reserved}${shiftedText.substr(3, 3)}`;
+          }
           break;
         // In the case of pattern E
         case 4:
@@ -214,8 +220,6 @@
     const errMsgModal = new bootstrap.Modal('#error-message-modal');
     const isReadyField = document.querySelector('#is-ready');
     const isSending = document.querySelector('#is-sending');
-    const colorLists = ['text-bg-light', 'opacity-25'];
-    const eraseClass = 'd-none';
     const tokenUrl = chats.dataset.tokenurl;
     const streamUrl = chats.dataset.streamurl;
     // Update scroll position
@@ -239,28 +243,28 @@
         const chatMessage = node.querySelector('.chat-message');
         const targetType = pattern[msgType];
         speakerType.textContent = (targetType ? targetType : '');
-        chatMessage.textContent = content;
+        chatMessage.innerHTML = content;
         chatMessage.id = msgID;
 
         return node;
       };
       const addChatMessage = (msg, isStreaming=false) => {
         // Get message data
-        const content = msg.content;
-        const msgType = msg.type;
-        const msgID = msg.id;
+        const content = marked.parse((msg?.content) || '');
+        const msgType = msg?.type;
+        const msgID = msg?.id;
         // Create clone node
         if (isStreaming) {
           const target = document.querySelector(`#${msgID}`);
           // In the case of receiving additional chunk data
           if (target) {
-            const newContent = target.textContent + content;
+            const newContent = target.innerHTML + content;
             setChatMessage(newContent, msgType, msgID, target.parentNode);
           }
           // In the case of receiving new message or receiving metadata
           else {
             const clone = template.content.cloneNode(true);
-            const node = setChatMessage('', '', msgID, clone);
+            const node = setChatMessage('', msgType, msgID, clone);
             chats.appendChild(node);
           }
         }
@@ -270,7 +274,7 @@
           chats.appendChild(node);
         }
       };
-      const convert2array = (outputs) => ((outputs) ? (Array.isArray(outputs) ? outputs : outputs.message) : []);
+      const convert2array = (outputs) => ((outputs) ? (Array.isArray(outputs) ? outputs : [outputs]) : []);
       // ================
       // = main process =
       // ================
@@ -293,14 +297,23 @@
         // In the case of receiving stream data
         case 'stream':
           {
-            // Add received message
-            addChatMessage(data, true);
+            const messages = convert2array(data);
+            // Add received messages
+            for (const msg of messages) {
+              // In the case of not existing message
+              if (msg?.id && !_g_msgIdStore[msg.id]) {
+                addChatMessage(msg, true);
+                _g_msgIdStore[msg.id] = true;
+              }
+            }
           }
           break;
         // In the case of end statement
         case 'end':
           {
-            _g_msgIdStore[_g_runID] = true;
+            if (_g_runID) {
+              _g_msgIdStore[_g_runID] = true;
+            }
             _g_runID = null;
           }
           break;
@@ -312,7 +325,7 @@
             // Add received messages
             for (const msg of messages) {
               // In the case of not existing message
-              if (!_g_msgIdStore[msg.id]) {
+              if (msg?.id && !_g_msgIdStore[msg.id]) {
                 addChatMessage(msg, false);
                 _g_msgIdStore[msg.id] = true;
               }
@@ -360,7 +373,7 @@
       // Define sent message
       const input = (() => {
         const role = 'human';
-        const msgID = `${role}-${generateUUID()}`;
+        const uuid = generateUUID();
 
         return [
           {
@@ -368,11 +381,13 @@
             additional_kwargs: {},
             type: role,
             example: false,
-            id: msgID,
+            id: `${role}-${uuid}`,
           },
         ];
       })();
       // Update button status
+      const colorLists = ['text-bg-light', 'opacity-25'];
+      const eraseClass = 'd-none';
       sendBtn.disabled = true;
       inputMessage.readOnly = true;
       inputMessage.classList.add(...colorLists);

@@ -212,6 +212,8 @@ async def test_check_run_id_of_astream_state_method():
   controller = stream.ChatbotController(app=FakeApp(data=data), pk=0)
   generator = controller._astream_state([])
   run_id = await anext(generator)
+  with pytest.raises(StopAsyncIteration):
+    _ = await anext(generator)
 
   assert run_id == expected
 
@@ -319,9 +321,8 @@ def test_check_validate_method(mocker, is_valid):
 def test_check_get_config_method(thread_id):
   controller = stream.ChatbotController(app=FakeApp(), pk=thread_id)
   config = controller._get_config()
-  keys = config.keys()
 
-  assert 'configurable' in keys
+  assert 'configurable' in config.keys()
   assert 'thread_id' in config['configurable'].keys()
   assert config['configurable']['thread_id'] == thread_id
 
@@ -350,8 +351,7 @@ def test_check_get_config_method(thread_id):
 ], ids=['general-pattern', 'duplicated-pattern'])
 def test_check_generate_response_method(messages, expected):
   controller = stream.ChatbotController(app=FakeApp(), pk=0)
-  generator = controller._generate_response(messages)
-  outputs = [ret for ret in generator]
+  outputs = controller._generate_response(messages)
 
   assert len(outputs) == len(expected)
   assert all([all(
@@ -363,8 +363,7 @@ def test_check_generate_response_method(messages, expected):
 def test_check_dict_pattern_of_generate_response_method():
   messages = [{'id': 'human-001', 'content': 'human-message'}]
   controller = stream.ChatbotController(app=FakeApp(), pk=0)
-  generator = controller._generate_response(messages)
-  outputs = [ret for ret in generator]
+  outputs = controller._generate_response(messages)
 
   assert len(outputs) == 1
   assert outputs[0].id == 'human-001'
@@ -373,13 +372,26 @@ def test_check_dict_pattern_of_generate_response_method():
 
 @pytest.mark.chatbot
 @pytest.mark.private
+def test_check_no_message_of_generate_response_method():
+  controller = stream.ChatbotController(app=FakeApp(), pk=0)
+  outputs = controller._generate_response([])
+
+  assert len(outputs) == 0
+
+@pytest.mark.chatbot
+@pytest.mark.private
 @pytest.mark.asyncio
 async def test_check_no_message_of_aget_thread_state_method():
   data = []
   controller = stream.ChatbotController(app=FakeApp(data=data), pk=0)
   generator = controller.aget_thread_state()
+  output = await anext(generator)
   with pytest.raises(StopAsyncIteration):
     _ = await anext(generator)
+
+  assert isinstance(output, stream.EventResponse)
+  assert output.event == 'history'
+  assert len(output.data) == 0
 
 @pytest.mark.chatbot
 @pytest.mark.private
@@ -393,6 +405,7 @@ async def test_check_single_message_of_aget_thread_state_method():
   with pytest.raises(StopAsyncIteration):
     _ = await anext(generator)
 
+  assert isinstance(output, stream.EventResponse)
   assert output.event == 'history'
   assert len(output.data) == 1
   assert output.data[0].id == expected_data.id
@@ -415,16 +428,18 @@ async def test_check_multi_messages_of_aget_thread_state_method():
   ]
   controller = stream.ChatbotController(app=FakeApp(data=data), pk=0)
   generator = controller.aget_thread_state()
-  outputs = [val async for val in generator]
+  output = await anext(generator)
+  with pytest.raises(StopAsyncIteration):
+    _ = await anext(generator)
 
-  assert len(outputs) == len(expected_data)
-  assert all([_out.event == 'history' for _out in outputs])
-  assert all([len(_out.data) for _out in outputs])
+  assert isinstance(output, stream.EventResponse)
+  assert output.event == 'history'
+  assert len(output.data) == len(expected_data)
   assert all([all([
-    _out.data[0].id == exact.id,
-    _out.data[0].content == exact.content,
-    _out.data[0].type == exact.type,
-  ])] for _out, exact in zip(outputs, expected_data))
+    target.id == exact.id,
+    target.content == exact.content,
+    target.type == exact.type,
+  ])] for target, exact in zip(output.data, expected_data))
 
 @pytest.mark.chatbot
 @pytest.mark.private
@@ -438,6 +453,7 @@ async def test_check_ainvoke_method():
   with pytest.raises(StopAsyncIteration):
     _ = await anext(generator)
 
+  assert isinstance(output, stream.EventResponse)
   assert output.event == 'data'
   assert len(output.data) == 1
   assert output.data[0].id == expected.id
@@ -462,6 +478,8 @@ async def test_check_invalid_data_of_ainvoke_method(mocker, is_valid, raise_exce
     mocker.patch.object(controller.app, 'ainvoke', side_effect=Exception('err-ainvoke'))
   generator = controller.ainvoke([])
   output = await anext(generator)
+  with pytest.raises(StopAsyncIteration):
+    _ = await anext(generator)
 
   assert isinstance(output, stream.EventResponse)
   assert output.event == expected.event
@@ -505,21 +523,26 @@ async def test_check_astream_method(messages, expected):
   controller = stream.ChatbotController(app=FakeApp(data=messages), pk=0)
   generator = controller.astream([])
   runs = await anext(generator)
-  outputs = [val async for val in generator]
-  ends = outputs.pop()
+  outputs = await anext(generator)
+  ends = await anext(generator)
+  with pytest.raises(StopAsyncIteration):
+    _ = await anext(generator)
 
+  assert isinstance(runs, stream.EventResponse)
   assert runs.event == 'metadata'
   assert 'run_id' in runs.data.keys()
   assert runs.data['run_id'] == exact_run_id
-  assert len(outputs) == len(expected)
+  assert isinstance(outputs, stream.EventResponse)
+  assert outputs.event == 'stream'
+  assert len(outputs.data) == len(expected)
   assert all([
     all([
-      target.event == 'stream',
-      target.data.id == exact.id,
-      target.data.content == exact.content,
-      target.data.type == exact.type,
+      target.id == exact.id,
+      target.content == exact.content,
+      target.type == exact.type,
     ])
-  ] for target, exact in zip(outputs, expected))
+  ] for target, exact in zip(outputs.data, expected))
+  assert isinstance(ends, stream.EventResponse)
   assert ends.event == 'end'
   assert len(ends.data) == 0
 
@@ -541,12 +564,18 @@ async def test_check_invalid_data_of_astream_method(mocker, is_valid, raise_exce
     mocker.patch.object(controller, '_astream_state', side_effect=Exception('err-astream'))
   generator = controller.astream([])
   output = await anext(generator)
+  end = await anext(generator)
+  with pytest.raises(StopAsyncIteration):
+    _ = await anext(generator)
 
   assert isinstance(output, stream.EventResponse)
   assert output.event == expected.event
   assert output.data.status_code == expected.data.status_code
   assert output.data.error == expected.data.error
   assert error_log in _faker.message
+  assert isinstance(end, stream.EventResponse)
+  assert end.event == 'end'
+  assert len(end.data) == 0
 
 @pytest.mark.chatbot
 @pytest.mark.private
@@ -568,19 +597,32 @@ async def test_check_event_stream_method(mocker, content):
   mocker.patch.object(controller, 'ainvoke', return_value=fake_callback())
   generator = controller.event_stream(content)
   output = await anext(generator)
+  with pytest.raises(StopAsyncIteration):
+    _ = await anext(generator)
 
   assert output == expected
 
 @pytest.mark.chatbot
 @pytest.mark.private
 @pytest.mark.asyncio
-@pytest.mark.parametrize('content', [
-  {'type': 'chat_history', 'message': []},
-  {'type': 'chat_message', 'message': []},
-], ids=['no-message-of-chat-history', 'no-message-of-chat-message'])
-async def test_check_no_message_of_event_stream_method(content):
-  controller = stream.ChatbotController(app=FakeApp(data=[]), pk=0)
+@pytest.mark.parametrize('is_stream,content,event_type', [
+  (True, {'type': 'chat_history', 'message': []}, 'history'),
+  (False, {'type': 'chat_history', 'message': []}, 'history'),
+  (True, {'type': 'chat_message', 'message': []}, 'end'),
+  (False, {'type': 'chat_message', 'message': []}, 'data'),
+], ids=[
+  'is-stream-and-no-message-of-chat-history',
+  'is-not-stream-and-no-message-of-chat-history',
+  'is-stream-and-no-message-of-chat-message',
+  'is-not-stream-and-no-message-of-chat-message',
+])
+async def test_check_no_message_of_event_stream_method(is_stream, content, event_type):
+  controller = stream.ChatbotController(app=FakeApp(data=[], is_stream=is_stream), pk=0)
   generator = controller.event_stream(content)
-
+  output = await anext(generator)
+  decoded = orjson.loads(output)
   with pytest.raises(StopAsyncIteration):
     _ = await anext(generator)
+
+  assert decoded['event'] == event_type
+  assert len(decoded['data']) == 0
